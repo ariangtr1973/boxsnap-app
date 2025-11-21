@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BoxSnap Mobile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Load Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Load Lucide Icons (Global) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Fix for mobile height */
+        html, body { height: 100%; background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- ICONS WRAPPER ---
+        // We use simple SVGs or Lucide global calls here for simplicity in a single file
+        const Icon = ({ name, size = 24, className }) => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            });
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+
+        // --- MOCK DATA ---
+        const INITIAL_BOXES = [
+            {
+                id: 'bx-101',
+                name: 'Kitchen Essentials',
+                room: 'Kitchen',
+                category: 'Fragile',
+                items: ['Blender', 'Coffee Maker', 'Plates'],
+                keywords: 'cooking, glass, ceramic', 
+                createdAt: new Date().toISOString(),
+                images: [] 
+            }
+        ];
+
+        const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Garage', 'Storage'];
+        const CATEGORIES = ['General', 'Fragile', 'Clothing', 'Electronics', 'Documents', 'Tools'];
+
+        // --- APP COMPONENT ---
+        function App() {
+            // 1. SETUP
+            const [boxes, setBoxes] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('boxsnap_data_v8');
+                    return saved ? JSON.parse(saved) : INITIAL_BOXES;
+                } catch (e) { return INITIAL_BOXES; }
+            });
+
+            const [apiKey, setApiKey] = useState(() => localStorage.getItem('boxsnap_api_key') || '');
+            const [view, setView] = useState('dashboard'); // dashboard, add
+            const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', category: 'General', items: [], images: [], keywords: '' });
+            const [selectedBox, setSelectedBox] = useState(null);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
+            const fileInputRef = useRef(null);
+
+            useEffect(() => {
+                localStorage.setItem('boxsnap_data_v8', JSON.stringify(boxes));
+                if (window.lucide) window.lucide.createIcons();
+            }, [boxes, view, selectedBox]);
+
+            const saveApiKey = (val) => {
+                setApiKey(val);
+                localStorage.setItem('boxsnap_api_key', val);
+            };
+
+            // 2. LOGIC
+            const handlePhotoUpload = (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const url = URL.createObjectURL(e.target.files[0]);
+                    setNewBox(prev => ({ ...prev, images: [...prev.images, url] }));
+                    // AI Logic would go here, connecting to API
+                }
+            };
+
+            const handleAddBox = (e) => {
+                e.preventDefault();
+                const box = {
+                    id: `bx-${Date.now().toString().slice(-4)}`,
+                    ...newBox,
+                    items: newBox.items.length ? newBox.items : ['Unsorted Items']
+                };
+                setBoxes([box, ...boxes]);
+                setNewBox({ name: '', room: 'Living Room', category: 'General', items: [], images: [], keywords: '' });
+                setView('dashboard');
+            };
+
+            const filteredBoxes = boxes.filter(b => 
+                b.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                b.items.some(i => i.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (b.keywords && b.keywords.toLowerCase().includes(searchQuery.toLowerCase()))
+            );
+
+            // 3. RENDERERS
+            if (showSettings) {
+                return (
+                    <div className="p-6 max-w-md mx-auto bg-white min-h-screen">
+                        <h2 className="text-xl font-bold mb-4">Settings</h2>
+                        <label className="block text-sm font-bold mb-2">Gemini API Key</label>
+                        <input 
+                            className="w-full p-3 border rounded mb-4" 
+                            type="password" 
+                            value={apiKey} 
+                            onChange={e => saveApiKey(e.target.value)} 
+                            placeholder="AIza..." 
+                        />
+                        <button onClick={() => setShowSettings(false)} className="w-full bg-slate-900 text-white p-3 rounded-xl">Save & Close</button>
+                    </div>
+                );
+            }
+
+            if (view === 'add') {
+                return (
+                    <div className="p-6 max-w-md mx-auto bg-white min-h-screen animate-in slide-in-from-right">
+                        <div className="flex items-center gap-2 mb-6">
+                            <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon name="arrow-left" /></button>
+                            <h2 className="text-xl font-bold">Pack New Box</h2>
+                        </div>
+                        
+                        <div className="mb-4">
+                            <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" />
+                            <div onClick={() => fileInputRef.current.click()} className="w-full h-32 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                                <Icon name="camera" size={32} />
+                                <span className="text-sm font-bold mt-2">Add Photo</span>
+                            </div>
+                            {newBox.images.length > 0 && <p className="text-xs text-green-600 mt-2 text-center">{newBox.images.length} photos added</p>}
+                        </div>
+
+                        <input className="w-full p-4 bg-white border rounded-xl mb-3" placeholder="Box Name (e.g. Summer Clothes)" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                            <select className="p-3 border rounded-xl" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>
+                                {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                            </select>
+                            <select className="p-3 border rounded-xl" value={newBox.category} onChange={e => setNewBox({...newBox, category: e.target.value})}>
+                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+
+                        <textarea className="w-full p-4 border rounded-xl mb-4 h-24" placeholder="List items here..." value={newBox.items.join(', ')} onChange={e => setNewBox({...newBox, items: e.target.value.split(',')})} />
+
+                        <button onClick={handleAddBox} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg">
+                            <Icon name="check-circle-2" /> Save Box
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="p-5 max-w-md mx-auto bg-slate-50 min-h-screen pb-24">
+                    <header className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-blue-600 text-white p-2 rounded-lg"><Icon name="package" /></div>
+                            <h1 className="text-xl font-bold">BoxSnap</h1>
+                        </div>
+                        <button onClick={() => setShowSettings(true)} className="p-2 bg-white rounded-full shadow-sm"><Icon name="settings" /></button>
+                    </header>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                        <div className="bg-blue-600 text-white p-4 rounded-2xl shadow-lg"><p className="text-xs opacity-75 uppercase">Boxes</p><p className="text-3xl font-bold">{boxes.length}</p></div>
+                        <div className="bg-white p-4 rounded-2xl shadow-sm"><p className="text-xs text-slate-500 uppercase">Items</p><p className="text-3xl font-bold text-slate-800">{boxes.reduce((acc, b) => acc + b.items.length, 0)}</p></div>
+                    </div>
+
+                    {/* Search */}
+                    <div className="relative mb-6">
+                        <input className="w-full p-3 pl-10 rounded-xl border-none shadow-sm" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                        <div className="absolute left-3 top-3 text-slate-400"><Icon name="search" size={18} /></div>
+                    </div>
+
+                    {/* List */}
+                    <div className="space-y-3">
+                        {filteredBoxes.map(box => (
+                            <div key={box.id} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                    <div className="flex gap-3">
+                                        <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden">
+                                            {box.images[0] ? <img src={box.images[0]} className="w-full h-full object-cover" /> : <Icon name="archive" size={18} className="text-slate-400" />}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold">{box.name}</h3>
+                                            <p className="text-xs text-slate-500">{box.room}</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => {
+                                        const confirm = window.confirm("Delete this box?");
+                                        if(confirm) setBoxes(boxes.filter(b => b.id !== box.id));
+                                    }} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={18} /></button>
+                                </div>
+                                <p className="text-sm text-slate-600 pl-14 truncate">{box.items.join(', ')}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* FAB */}
+                    <button onClick={() => setView('add')} className="fixed bottom-6 right-6 bg-slate-900 text-white p-4 rounded-full shadow-2xl flex items-center gap-2">
+                        <Icon name="plus" /> <span className="font-bold pr-1">Add</span>
+                    </button>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
