@@ -17,12 +17,12 @@
 
         // --- ⬇️ PASTE YOUR FIREBASE CONFIG HERE ⬇️ ---
         const firebaseConfig = {
-            apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
-            authDomain: "boxsnap-b5d3d.firebaseapp.com",
-            projectId: "boxsnap-b5d3d",
-            storageBucket: "boxsnap-b5d3d.firebasestorage.app",
-            messagingSenderId: "792190274154",
-            appId: "1:792190274154:web:8f251191a14387b2365813"
+             apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
+  authDomain: "boxsnap-b5d3d.firebaseapp.com",
+  projectId: "boxsnap-b5d3d",
+  storageBucket: "boxsnap-b5d3d.firebasestorage.app",
+  messagingSenderId: "792190274154",
+  appId: "1:792190274154:web:8f251191a14387b2365813"
         };
         // --- ⬆️ END CONFIG ⬆️ ---
 
@@ -35,7 +35,10 @@
             error: null
         };
 
-        if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5) {
+        const hasConfig = firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5;
+        
+        if (hasConfig) {
+            console.log("Firebase Check: Config keys found. Initializing Firebase...");
             try {
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
@@ -47,17 +50,20 @@
                 window.appId = APP_ID;
                 window.boxsnap.status = 'ready';
 
-                signInAnonymously(auth).catch(e => {
-                    console.error("Auth Error:", e);
-                    window.boxsnap.error = e.message;
+                signInAnonymously(auth).then(() => {
+                    console.log("Firebase Auth: Anonymous sign-in successful.");
+                }).catch(e => {
+                    console.error("Firebase Auth Error:", e);
+                    window.boxsnap.error = "Auth Failed: " + e.message;
                 });
                 
             } catch (e) {
-                console.error("Firebase Init Error:", e);
+                console.error("Firebase Initialization Critical Error:", e);
                 window.boxsnap.status = 'error';
-                window.boxsnap.error = e.message;
+                window.boxsnap.error = "Init Failed: " + e.message;
             }
         } else {
+            console.warn("Firebase Check: API Key is missing or too short. Skipping initialization.");
             window.boxsnap.status = 'missing_config';
         }
     </script>
@@ -77,7 +83,7 @@
         const Icons = {
             arrowLeft: "m12 19-7-7 7-7 M19 12H5",
             camera: "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z M12 13m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
-            settings: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
+            settings: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l-.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
             check: "M20 6 9 17l-5-5",
             sparkles: "m12 3-1.9 5.8a2 2 0 0 1-1.2 1.2L3 12l5.8 1.9a2 2 0 0 1 1.2 1.2L12 21l1.9-5.8a2 2 0 0 1 1.2-1.2L21 12l-5.8-1.9a2 2 0 0 1-1.2-1.2L12 3z",
             trash: "M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
@@ -87,14 +93,16 @@
             cloud: "M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.1-1.7-1.4-3-3-3 .1 0 .2 0 .3 0-2.1 0-3.9-1.3-4.6-3.2C4.3 9.8 3 11.3 3 13c0 1.7 1.3 3 3 3h11.5z",
             alert: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
         };
+        const STATUS_STEPS = ['Packing', 'Ready', 'Loaded', 'Unpacked'];
+
 
         function App() {
             const [boxes, setBoxes] = useState([]);
             const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
             const [apiKey, setApiKey] = useState(() => { try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; } });
-            const [dbStatus, setDbStatus] = useState('init'); // init, connecting, connected, error, missing_config
-            const [errorMsg, setErrorMsg] = useState('');
+            const [dbStatus, setDbStatus] = useState(window.boxsnap.status || 'init'); // init, connecting, connected, error, missing_config
+            const [errorMsg, setErrorMsg] = useState(window.boxsnap.error || '');
 
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
@@ -109,46 +117,56 @@
 
             // --- FIREBASE CONNECTION (Anti-Freeze Logic) ---
             useEffect(() => {
-                // 1. Check if config exists
                 if (window.boxsnap.status === 'missing_config') {
                     setDbStatus('missing_config');
                     return;
                 }
+                if (window.boxsnap.status === 'error') {
+                    setDbStatus('error');
+                    setErrorMsg(window.boxsnap.error);
+                    return;
+                }
 
                 setDbStatus('connecting');
+                console.log("App Init: Waiting for Firebase Auth change...");
 
-                // 2. Timeout Safety: If not connected in 5 seconds, show error
+                // Timeout Safety: If not connected in 5 seconds, show error
                 const timeout = setTimeout(() => {
                     if (!user && dbStatus === 'connecting') {
                         setDbStatus('error');
-                        setErrorMsg("Connection timed out. Check internet or Firebase Config.");
+                        setErrorMsg("Connection timed out (5s). Check network or browser console.");
+                        console.error("Connection Failed: Timeout reached.");
                     }
                 }, 5000);
 
-                // 3. Listen for Auth
-                const checkAuth = setInterval(() => {
-                    if (window.auth && window.fs) {
-                        clearInterval(checkAuth);
-                        window.auth.onAuthStateChanged(u => {
-                            if (u) {
-                                setUser(u);
-                                setDbStatus('connected');
-                                // Subscribe to data
-                                const q = window.fs.query(window.fs.collection(window.db, `artifacts/${window.appId}/users/${u.uid}/boxes`));
-                                window.fs.onSnapshot(q, (snapshot) => {
-                                    const list = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-                                    setBoxes(list.sort((a,b) => b.createdAt - a.createdAt));
-                                }, (err) => {
-                                    console.error(err);
-                                    setErrorMsg("Permission denied. Did you publish Firestore Rules?");
-                                    setDbStatus('error');
-                                });
-                            }
+                // Listen for Auth and Data
+                const unsubscribeAuth = window.auth.onAuthStateChanged(u => {
+                    if (u) {
+                        setUser(u);
+                        setDbStatus('connected');
+                        console.log(`Firebase Auth: User ID ${u.uid} is now connected.`);
+                        
+                        // Subscribe to data
+                        const q = window.fs.query(window.fs.collection(window.db, `artifacts/${window.appId}/users/${u.uid}/boxes`));
+                        
+                        const unsubscribeData = window.fs.onSnapshot(q, (snapshot) => {
+                            const list = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                            setBoxes(list.sort((a,b) => b.createdAt - a.createdAt));
+                            console.log(`Firestore: Received ${list.length} boxes.`);
+                        }, (err) => {
+                            // This is the CRITICAL permission error point
+                            console.error("Firestore Permission Error:", err);
+                            setErrorMsg("Permission Denied (Code: " + err.code + "). Did you publish the Security Rules?");
+                            setDbStatus('error');
                         });
+                        return () => unsubscribeData(); // Cleanup data listener
                     }
-                }, 200);
+                });
 
-                return () => { clearTimeout(timeout); clearInterval(checkAuth); };
+                return () => { 
+                    clearTimeout(timeout); 
+                    if (unsubscribeAuth) unsubscribeAuth();
+                };
             }, []);
 
             // --- ACTIONS ---
@@ -224,7 +242,7 @@
                     <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
                         <div className="text-red-500 mb-4 flex justify-center"><Icon d={Icons.alert} className="w-12 h-12" /></div>
                         <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
-                        <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Paste your Firebase keys in index.html." : errorMsg}</p>
+                        <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Your Firebase keys are missing. Please paste them into index.html." : errorMsg}</p>
                         {dbStatus === 'missing_config' && <div className="bg-slate-100 p-3 rounded text-xs font-mono overflow-x-auto mb-4">const firebaseConfig = &#123; ... &#125;</div>}
                         <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Refresh App</button>
                     </div>
@@ -281,14 +299,14 @@
                         <button onClick={() => toggleStatus(selectedBox.id, selectedBox.status)} className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[selectedBox.status || 'Packing']}`}>{selectedBox.status || 'Packing'}</button>
                     </div>
                     <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4">
-                        {selectedBox.images[0] ? <img src={selectedBox.images[0]} className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center"><Icon d={Icons.box} /></div>}
+                        {selectedBox.images[0] ? <img src={selectedBox.images[0]} className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center"><Icon d={Icons.package} className="w-12 h-12 text-slate-300" />}</div>}
                     </div>
                     <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
                     <p className="text-slate-500 mb-6">{selectedBox.room}</p>
                     <div className="bg-slate-50 p-4 rounded-xl border mb-6"><h4 className="font-bold text-xs uppercase text-slate-500 mb-3">Contents</h4><div className="flex flex-wrap gap-2">{selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm">{item}</span>)}</div></div>
                     <div className="text-center border-t pt-6">
                         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + "?id=" + selectedBox.id)}`} className="mx-auto border-4 border-black p-2 rounded-lg mb-4" />
-                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.box} /> Print Label</button>
+                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
                     </div>
                 </div>
             );
@@ -297,25 +315,27 @@
             return (
                 <div className="p-5 bg-slate-50 min-h-screen pb-24">
                     <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.box} className="w-6 h-6" /> BoxSnap</h1>
+                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap</h1>
                         <button onClick={() => setShowSettings(true)} className="p-2 bg-white rounded-full shadow-md"><Icon d={Icons.settings} className="w-6 h-6" /></button>
                     </div>
-                    {dbStatus === 'connecting' && <div className="bg-yellow-100 text-yellow-800 p-3 rounded-lg text-center mb-4 text-sm font-medium">Connecting to Cloud...</div>}
+                    {dbStatus === 'connecting' && <div className="bg-yellow-100 text-yellow-800 p-3 rounded-xl text-center mb-4 text-sm font-medium flex items-center justify-center gap-2"><Icon d={Icons.cloud} className="w-4 h-4" />Connecting to Cloud...</div>}
                     {dbStatus === 'connected' && boxes.length === 0 && <div className="text-center text-slate-500 py-10 bg-white rounded-xl shadow-inner">Inventory empty. Start packing!</div>}
+                    {dbStatus === 'error' && <div className="bg-red-100 text-red-800 p-3 rounded-xl text-center mb-4 text-sm font-medium flex items-center justify-center gap-2"><Icon d={Icons.alert} className="w-4 h-4" />{errorMsg}</div>}
+                    
                     <div className="space-y-3">
                         {boxes.filter(b => !searchQuery || JSON.stringify(b).toLowerCase().includes(searchQuery.toLowerCase())).map(box => (
-                            <div key={box.id} onClick={() => setSelectedBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500">
+                            <div key={box.id} onClick={() => setSelectedBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 active:scale-[.98] transition-transform">
                                 <div className="flex justify-between items-start">
                                     <div className="flex gap-3">
                                         <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
-                                            {box.images[0] ? <img src={box.images[0]} className="w-full h-full object-cover"/> : <Icon d={Icons.box} className="w-8 h-8 text-slate-400 mx-auto my-2" />}
+                                            {box.images[0] ? <img src={box.images[0]} className="w-full h-full object-cover"/> : <Icon d={Icons.package} className="w-8 h-8 text-slate-400 mx-auto my-2" />}
                                         </div>
                                         <div className="flex flex-col">
                                             <h3 className="font-bold text-lg text-slate-900 leading-tight">{box.name || "Unnamed"}</h3>
                                             <p className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full self-start mt-0.5">{box.room}</p>
                                         </div>
                                     </div>
-                                    <button onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
+                                    <button onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }} className="text-red-300 hover:text-red-500"><Icon d={Icons.trash} className="w-5 h-5"/></button>
                                 </div>
                                 <p className="text-sm text-slate-600 truncate pt-1">{box.items.join(', ')}</p>
                             </div>
