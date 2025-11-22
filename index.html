@@ -351,5 +351,26 @@
 
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
+    <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
+    authDomain: "boxsnap-b5d3d.firebaseapp.com",
+    projectId: "boxsnap-b5d3d",
+    storageBucket: "boxsnap-b5d3d.appspot.com",
+    messagingSenderId: "792190274154",
+    appId: "1:792190274154:web:8f251191a14387b2365813"
+  };
+
+  console.log("DEBUG: Firebase config loaded:", firebaseConfig);
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  console.log("DEBUG: Firebase initialized successfully.");
+</script>
+
 </body>
 </html>
