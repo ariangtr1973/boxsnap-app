@@ -3,15 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap AI</title>
+    <title>BoxSnap Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- FIREBASE SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 🛑 STOP! PASTE YOUR FIREBASE CONFIG BELOW 🛑 ---
+        // Go to Firebase Console -> Project Settings -> General -> Your Apps -> SDK Setup/Config
+        // Copy the values inside the quotes. Do NOT remove the commas.
+        
+        const firebaseConfig = {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
+            messagingSenderId: "",
+            appId: ""
+        };
+
+        // -------------------------------------------------------
+
+        // App ID for database storage path
+        const APP_ID = "boxsnap-mobile-v1";
+
+        if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                
+                // Expose to window for React
+                window.db = db;
+                window.auth = auth;
+                window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
+                window.appId = APP_ID;
+                window.isFirebaseConfigured = true;
+
+                // Start Auth
+                signInAnonymously(auth).catch(e => console.error("Auth Error:", e));
+                
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+                window.firebaseError = e.message;
+            }
+        } else {
+            window.isFirebaseConfigured = false;
+        }
+    </script>
+
     <style>
-        body { background-color: #f8fafc; -webkit-tap-highlight-color: transparent; touch-action: manipulation; font-family: system-ui, -apple-system, sans-serif; }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        @media print { .no-print { display: none !important; } .print-only { display: block !important; } }
+        body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
 <body>
@@ -30,7 +78,7 @@
         const Icons = {
             arrowLeft: "m12 19-7-7 7-7 M19 12H5",
             camera: "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z M12 13m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
-            settings: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
+            settings: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
             check: "M20 6 9 17l-5-5",
             save: "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z M17 21v-8H7v8 M7 3v5h8",
             upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12",
@@ -39,292 +87,231 @@
             plus: "M12 5v14 M5 12h14",
             package: "M16.5 9.4 7.5 4.21 M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.3 7l8.7 5 8.7-5 M12 22v-10",
             search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35",
-            lock: "M12 17v-4 M17 17H7 M18 8h-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v7a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V8z"
+            cloud: "M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.1-1.7-1.4-3-3-3 .1 0 .2 0 .3 0-2.1 0-3.9-1.3-4.6-3.2C4.3 9.8 3 11.3 3 13c0 1.7 1.3 3 3 3h11.5z",
+            alert: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
         };
 
-        // --- HELPERS ---
-        const fileToBase64 = (file) => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result); 
-            reader.onerror = error => reject(error);
-        });
-
-        const STATUS_STEPS = ['Packing', 'Ready', 'Loaded', 'Unpacked'];
-        const STATUS_COLORS = {
-            'Packing': 'bg-gray-100 text-gray-600',
-            'Ready': 'bg-blue-100 text-blue-700',
-            'Loaded': 'bg-purple-100 text-purple-700',
-            'Unpacked': 'bg-green-100 text-green-700'
-        };
-
-        // --- APP ---
         function App() {
-            // State initialization with error handling for privacy browsers
-            const [boxes, setBoxes] = useState(() => {
-                try { return JSON.parse(localStorage.getItem('boxsnap_data_v14') || '[]'); } catch { return []; }
-            });
-            const [apiKey, setApiKey] = useState(() => {
-                try { return localStorage.getItem('boxsnap_api_key') || ''; } catch { return ''; }
-            });
-            const [appUrl, setAppUrl] = useState(() => {
-                try { return localStorage.getItem('boxsnap_app_url') || ''; } catch { return ''; }
-            });
-            const [customRooms, setCustomRooms] = useState(() => {
-                try { return JSON.parse(localStorage.getItem('boxsnap_rooms') || '[]'); } catch { return []; }
-            });
+            const [boxes, setBoxes] = useState([]);
+            const [user, setUser] = useState(null);
+            const [view, setView] = useState('dashboard');
+            const [apiKey, setApiKey] = useState(() => { try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; } });
             
-            const [view, setView] = useState('dashboard'); 
-            const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', category: 'General', items: [], images: [], keywords: '', status: 'Packing' });
+            const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
             const [isAnalyzing, setIsAnalyzing] = useState(false);
-            const [showSettings, setShowSettings] = useState(false);
             const [selectedBox, setSelectedBox] = useState(null);
+            const [showSettings, setShowSettings] = useState(false);
+            const [searchQuery, setSearchQuery] = useState('');
             
             const fileRef = useRef(null);
             const importRef = useRef(null);
 
-            const ROOMS = useMemo(() => {
-                return [...new Set([...['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'], ...customRooms])];
-            }, [customRooms]);
+            const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
+            const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
-            // --- PERSISTENCE ---
-            useEffect(() => { 
-                try { localStorage.setItem('boxsnap_data_v14', JSON.stringify(boxes)); } catch (e) { console.error("Storage limit reached"); }
-            }, [boxes]);
-
+            // --- FIREBASE SYNC ---
             useEffect(() => {
-                try { localStorage.setItem('boxsnap_rooms', JSON.stringify(customRooms)); } catch (e) {}
-            }, [customRooms]);
+                if (!window.isFirebaseConfigured) return;
 
-            const saveKey = (val) => { const v = val.trim(); setApiKey(v); try{localStorage.setItem('boxsnap_api_key', v)}catch(e){} };
-            const saveAppUrl = (val) => { const v = val.trim(); setAppUrl(v); try{localStorage.setItem('boxsnap_app_url', v)}catch(e){} };
+                const checkAuth = setInterval(() => {
+                    if (window.auth && window.fs) {
+                        clearInterval(checkAuth);
+                        window.auth.onAuthStateChanged(u => {
+                            if (u) {
+                                setUser(u);
+                                const q = window.fs.query(window.fs.collection(window.db, `artifacts/${window.appId}/users/${u.uid}/boxes`));
+                                window.fs.onSnapshot(q, (snapshot) => {
+                                    const list = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                                    setBoxes(list.sort((a,b) => b.createdAt - a.createdAt));
+                                });
+                            }
+                        });
+                    }
+                }, 500);
+                return () => clearInterval(checkAuth);
+            }, []);
 
-            // --- DEEP LINKING ---
-            useEffect(() => {
-                const params = new URLSearchParams(window.location.search);
-                const boxId = params.get('id');
-                if (boxId && boxes.length > 0) {
-                    const found = boxes.find(b => b.id === boxId);
-                    if (found) setSelectedBox(found);
+            // --- ACTIONS ---
+            const handleSaveKey = (val) => {
+                const k = val.trim();
+                setApiKey(k);
+                try { localStorage.setItem('gemini_key', k); } catch(e) {}
+            };
+
+            const fileToBase64 = (file) => new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+            });
+
+            const handlePhoto = async (e) => {
+                if(e.target.files[0]) {
+                    const f = e.target.files[0];
+                    setRawFile(f);
+                    const b64 = await fileToBase64(f);
+                    setNewBox(p => ({...p, images: [b64]}));
                 }
-            }, [boxes]);
+            };
 
-            // --- AI LOGIC ---
             const analyze = async () => {
-                if (!rawFile) return alert("Photo required!");
-                if (!apiKey) return setShowSettings(true);
-                
+                if (!rawFile || !apiKey) {
+                    if (!apiKey) setShowSettings(true);
+                    return alert("Please add a photo and enter your Gemini API Key in settings.");
+                }
                 setIsAnalyzing(true);
                 try {
                     const fullDataURI = await fileToBase64(rawFile);
                     const apiBase64 = fullDataURI.split(',')[1]; 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                    
-                    const res = await fetch(url, { 
-                        method: 'POST', 
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            contents: [{ parts: [
-                                { text: "List items in image as JSON: { \"items\": [\"item1\", \"item2\"], \"keywords\": \"tags\" }" },
-                                { inlineData: { mimeType: rawFile.type, data: apiBase64 } }
-                            ]}]
-                        }) 
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: "List items in the image as a JSON object: { \"items\": [\"item1\"] }." }, { inlineData: { mimeType: rawFile.type, data: apiBase64 } }] }] })
                     });
-                    
                     const data = await res.json();
-                    if(data.error) throw new Error(data.error.message);
-                    
-                    const result = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
-                    setNewBox(prev => ({
-                        ...prev,
-                        items: [...new Set([...prev.items, ...(result.items || [])])],
-                        keywords: result.keywords || ''
-                    }));
-                } catch (e) {
-                    alert("AI Error: " + e.message);
-                } finally {
-                    setIsAnalyzing(false);
-                }
+                    if (data.error) throw new Error(data.error.message);
+                    const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
+                    setNewBox(p => ({...p, items: [...new Set([...p.items, ...json.items])]}));
+                } catch (e) { alert("AI Error: " + e.message); }
+                setIsAnalyzing(false);
             };
 
-            // --- ACTIONS ---
-            const handlePhoto = async (e) => {
-                if (e.target.files[0]) {
-                    const f = e.target.files[0];
-                    setRawFile(f);
-                    const base64 = await fileToBase64(f);
-                    setNewBox(prev => ({ ...prev, images: [...prev.images, base64] }));
-                }
+            const saveBox = async () => {
+                if (!user) return alert("Cloud not connected. Check config.");
+                if (!newBox.name) return alert("Enter Box Name.");
+                try {
+                    await window.fs.setDoc(window.fs.doc(window.db, `artifacts/${window.appId}/users/${user.uid}/boxes`, `box_${Date.now()}`), { ...newBox, createdAt: Date.now() });
+                    setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
+                    setRawFile(null);
+                    setView('dashboard');
+                } catch (e) { alert("Save Failed: " + e.message); }
             };
 
-            const saveBox = () => {
-                setBoxes([{ id: `bx-${Date.now()}`, ...newBox }, ...boxes]);
-                setNewBox({ name: '', room: 'Living Room', category: 'General', items: [], images: [], keywords: '', status: 'Packing' });
-                setRawFile(null);
-                setView('dashboard');
+            const deleteBox = async (id) => {
+                if(confirm("Delete?")) await window.fs.deleteDoc(window.fs.doc(window.db, `artifacts/${window.appId}/users/${user.uid}/boxes`, id));
             };
 
-            const exportData = () => {
-                const dataStr = JSON.stringify({ boxes, customRooms, apiKey, appUrl }, null, 2);
-                const blob = new Blob([dataStr], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
-                document.body.appendChild(a);
-                a.click();
-                alert("Backup saved to Downloads!");
-            };
-
-            const importData = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    try {
-                        const data = JSON.parse(ev.target.result);
-                        if (data.boxes) setBoxes(data.boxes);
-                        if (data.customRooms) setCustomRooms(data.customRooms);
-                        if (data.apiKey) setApiKey(data.apiKey);
-                        alert("Restore successful!");
-                    } catch { alert("Invalid backup file."); }
-                };
-                reader.readAsText(file);
-            };
-
-            const toggleStatus = (id) => {
-                setBoxes(boxes.map(b => {
-                    if (b.id !== id) return b;
-                    const idx = STATUS_STEPS.indexOf(b.status || 'Packing');
-                    return { ...b, status: STATUS_STEPS[(idx + 1) % STATUS_STEPS.length] };
-                }));
-                if(selectedBox && selectedBox.id === id) {
-                    const idx = STATUS_STEPS.indexOf(selectedBox.status || 'Packing');
-                    setSelectedBox({...selectedBox, status: STATUS_STEPS[(idx + 1) % STATUS_STEPS.length]});
-                }
+            const toggleStatus = async (id, current) => {
+                if(!user) return;
+                const idx = STATUS_STEPS.indexOf(current || 'Packing');
+                const next = STATUS_STEPS[(idx + 1) % STATUS_STEPS.length];
+                await window.fs.setDoc(window.fs.doc(window.db, `artifacts/${window.appId}/users/${user.uid}/boxes`, id), { status: next }, { merge: true });
+                if(selectedBox) setSelectedBox({...selectedBox, status: next});
             };
 
             // --- VIEWS ---
 
-            if (showSettings) return (
-                <div className="p-6 bg-white min-h-screen no-print">
-                    <div className="flex items-center gap-2 mb-6 text-xl font-bold">
-                        <span onClick={() => setShowSettings(false)}><Icon d={Icons.arrowLeft} /></span> Settings
-                    </div>
-                    
-                    <div className="mb-6 bg-slate-50 p-4 rounded-xl border">
-                        <label className="block font-bold mb-2 text-xs uppercase text-slate-500">API Key (AI Features)</label>
-                        <input className="w-full p-3 border rounded-lg mb-2 text-sm bg-white font-mono" type="password" value={apiKey} onChange={e => saveKey(e.target.value)} placeholder="Paste AIza key..." />
-                        <p className={`text-xs ${apiKey ? 'text-green-600 font-bold' : 'text-red-500'}`}>{apiKey ? "✓ Key Saved" : "✗ Key Missing"}</p>
-                    </div>
-
-                    <div className="mb-6">
-                        <label className="block font-bold mb-2 text-xs uppercase text-slate-500">App URL (For QR)</label>
-                        <input className="w-full p-3 border rounded-lg text-sm" value={appUrl} onChange={e => saveAppUrl(e.target.value)} placeholder="https://your-site.netlify.app" />
-                    </div>
-
-                    <div className="mb-6 border-t pt-6">
-                        <label className="block font-bold mb-4 text-xs uppercase text-slate-500">Data Backup</label>
-                        <div className="grid grid-cols-2 gap-3">
-                            <button onClick={exportData} className="p-4 border bg-blue-50 text-blue-700 rounded-xl font-bold flex flex-col items-center">
-                                <Icon d={Icons.save} className="mb-1" /> Save Backup
-                            </button>
-                            <button onClick={() => importRef.current.click()} className="p-4 border bg-green-50 text-green-700 rounded-xl font-bold flex flex-col items-center">
-                                <Icon d={Icons.upload} className="mb-1" /> Restore
-                            </button>
-                            <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
+            // 0. SETUP SCREEN (If config missing)
+            if (window.isFirebaseConfigured === false) return (
+                <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-red-50 text-center">
+                    <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
+                        <div className="text-red-500 mb-4 flex justify-center"><Icon d={Icons.alert} className="w-12 h-12" /></div>
+                        <h1 className="text-2xl font-bold text-slate-900 mb-2">Setup Required</h1>
+                        <p className="text-slate-600 mb-6">This app requires a cloud database to save your items securely.</p>
+                        <div className="bg-slate-100 p-4 rounded-lg text-left text-xs font-mono overflow-x-auto mb-6">
+                            1. Open index.html in GitHub<br/>
+                            2. Find 'const firebaseConfig'<br/>
+                            3. Paste your keys inside the quotes
                         </div>
+                        <p className="text-xs text-slate-400">Once updated, commit changes and refresh this page.</p>
                     </div>
-                    <button onClick={() => setShowSettings(false)} className="w-full bg-black text-white p-4 rounded-xl font-bold">Close</button>
                 </div>
             );
 
+            // 1. Settings
+            if (showSettings) return (
+                <div className="p-6 bg-white min-h-screen">
+                    <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
+                        <span onClick={() => setShowSettings(false)}><Icon d={Icons.arrowLeft}/></span> Settings
+                    </div>
+                    <div className="mb-6">
+                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
+                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={e => handleSaveKey(e.target.value)} placeholder="AIza..." />
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key saved locally." : "Required for AI analysis."}</p>
+                    </div>
+                    <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-200">
+                        <div className="font-bold flex items-center gap-2 mb-1"><Icon d={Icons.cloud} className="w-5 h-5" /> Cloud Status</div>
+                        {user ? <p>✅ Connected</p> : <p>⏳ Connecting...</p>}
+                    </div>
+                    <button onClick={() => setShowSettings(false)} className="w-full mt-8 bg-slate-900 text-white py-3 rounded-xl font-bold">Close</button>
+                </div>
+            );
+
+            // 2. Add Box
+            if (view === 'add') return (
+                <div className="p-6 bg-white min-h-screen flex flex-col animate-in">
+                    <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
+                        <span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box
+                    </div>
+                    <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
+                    <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden">
+                        {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-50"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
+                        <span className="relative font-bold text-sm mt-1">Add Photo</span>
+                    </div>
+                    <button onClick={analyze} disabled={!rawFile || isAnalyzing || !apiKey} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 disabled:bg-gray-200">
+                        {isAnalyzing ? "Thinking..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Items</>}
+                    </button>
+                    <div className="space-y-4 flex-1">
+                        <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
+                        <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Contents..." value={newBox.items.join(', ')} onChange={e => setNewBox({...newBox, items: e.target.value.split(',')})} />
+                        <select className="w-full p-3 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
+                    </div>
+                    <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2"><Icon d={Icons.check} className="w-5 h-5"/> Save to Cloud</button>
+                </div>
+            );
+
+            // 3. Detail
             if (selectedBox) return (
-                <div className="p-6 bg-white min-h-screen animate-in no-print">
+                <div className="p-6 bg-white min-h-screen animate-in">
                     <div className="flex justify-between items-center mb-4">
                         <button onClick={() => setSelectedBox(null)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
-                        <button onClick={() => toggleStatus(selectedBox.id)} className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[selectedBox.status || 'Packing']}`}>
-                            {selectedBox.status || 'Packing'}
-                        </button>
+                        <button onClick={() => toggleStatus(selectedBox.id, selectedBox.status)} className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[selectedBox.status || 'Packing']}`}>{selectedBox.status || 'Packing'}</button>
                     </div>
-                    <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 relative">
-                        {selectedBox.images[0] ? <img src={selectedBox.images[0]} className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-400"><Icon d={Icons.camera} /></div>}
+                    <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4">
+                        {selectedBox.images[0] ? <img src={selectedBox.images[0]} className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center"><Icon d={Icons.box} /></div>}
                     </div>
                     <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
                     <p className="text-slate-500 mb-6">{selectedBox.room}</p>
-                    <div className="bg-slate-50 p-4 rounded-xl border mb-6">
-                        <h4 className="font-bold text-xs uppercase text-slate-500 mb-3">Contents</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm">{item}</span>)}
-                        </div>
-                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border mb-6"><h4 className="font-bold text-xs uppercase text-slate-500 mb-3">Contents</h4><div className="flex flex-wrap gap-2">{selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm">{item}</span>)}</div></div>
                     <div className="text-center border-t pt-6">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent((appUrl || window.location.origin) + "?id=" + selectedBox.id)}`} className="mx-auto border-4 border-black p-2 rounded-lg mb-4" />
-                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} /> Print Label</button>
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + "?id=" + selectedBox.id)}`} className="mx-auto border-4 border-black p-2 rounded-lg mb-4" />
+                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.box} /> Print Label</button>
                     </div>
                 </div>
             );
 
-            if (view === 'add') return (
-                <div className="p-6 bg-white min-h-screen flex flex-col animate-in no-print">
-                    <div className="flex items-center gap-2 mb-6 text-xl font-bold">
-                        <span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft} /></span> Pack Box
-                    </div>
-                    <input type="file" accept="image/*" ref={fileRef} onChange={handlePhoto} className="hidden" />
-                    <div onClick={() => fileRef.current.click()} className="w-full h-40 bg-slate-100 rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-slate-400 mb-3 relative overflow-hidden">
-                        {newBox.images.length > 0 ? <img src={newBox.images[newBox.images.length-1]} className="absolute inset-0 w-full h-full object-cover opacity-50" /> : <Icon d={Icons.camera} />}
-                        <span className="relative font-bold text-sm mt-1">Add Photo</span>
-                    </div>
-                    <button onClick={analyze} disabled={!rawFile || isAnalyzing} className={`w-full py-3 rounded-xl font-bold flex justify-center items-center gap-2 mb-6 shadow-sm ${!rawFile ? 'bg-gray-100 text-gray-400' : 'bg-indigo-600 text-white'}`}>
-                        {isAnalyzing ? "Analyzing..." : <><Icon d={Icons.sparkles} /> Smart Detect Items</>}
-                    </button>
-                    <div className="space-y-4 flex-1">
-                        <input className="w-full p-3 border rounded-xl" placeholder="Add item..." onKeyDown={e => e.key === 'Enter' && setNewBox(p => ({...p, items: [...p.items, e.target.value], value: ''}))} />
-                        <div className="flex flex-wrap gap-2">{newBox.items.map((item, i) => <span key={i} className="bg-blue-50 text-blue-800 px-2 py-1 rounded text-sm">{item}</span>)}</div>
-                        <input className="w-full p-3 border rounded-xl" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} placeholder="Box Name" />
-                        <select className="w-full p-3 border rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>
-                            {ROOMS.map(r => <option key={r}>{r}</option>)}
-                        </select>
-                    </div>
-                    <button onClick={saveBox} className="w-full bg-black text-white py-4 rounded-xl font-bold mt-4 flex justify-center gap-2"><Icon d={Icons.check} /> Save Box</button>
-                </div>
-            );
-
+            // 4. Dashboard
             return (
-                <div className="p-5 bg-slate-50 min-h-screen pb-24 no-print">
+                <div className="p-5 bg-slate-50 min-h-screen pb-24">
                     <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2"><Icon d={Icons.package} /> BoxSnap</h1>
-                        <button onClick={() => setShowSettings(true)} className="p-2 bg-white rounded-full shadow-md"><Icon d={Icons.settings} /></button>
+                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.box} className="w-6 h-6" /> BoxSnap</h1>
+                        <button onClick={() => setShowSettings(true)} className="p-2 bg-white rounded-full shadow-md"><Icon d={Icons.settings} className="w-6 h-6" /></button>
                     </div>
-                    {boxes.map(box => (
-                        <div key={box.id} onClick={() => setSelectedBox(box)} className="bg-white p-4 rounded-xl shadow-sm mb-3 cursor-pointer border border-transparent hover:border-blue-500 transition-all">
-                            <div className="flex justify-between items-center mb-2">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden">
-                                        {box.images[0] ? <img src={box.images[0]} className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><Icon d={Icons.package} /></div>}
+                    {!user && window.isFirebaseConfigured && <div className="bg-yellow-100 text-yellow-800 p-3 rounded-lg text-center mb-4 text-sm font-medium">Connecting...</div>}
+                    <div className="space-y-3">
+                        {boxes.filter(b => !searchQuery || JSON.stringify(b).toLowerCase().includes(searchQuery.toLowerCase())).map(box => (
+                            <div key={box.id} onClick={() => setSelectedBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex gap-3">
+                                        <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
+                                            {box.images[0] ? <img src={box.images[0]} className="w-full h-full object-cover"/> : <Icon d={Icons.box} className="w-8 h-8 text-slate-400 mx-auto my-2" />}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <h3 className="font-bold text-lg text-slate-900 leading-tight">{box.name || "Unnamed"}</h3>
+                                            <p className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full self-start mt-0.5">{box.room}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold">{box.name}</h3>
-                                        <p className="text-xs text-slate-500">{box.room}</p>
-                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
                                 </div>
-                                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${STATUS_COLORS[box.status || 'Packing']}`}>{box.status || 'Packing'}</span>
+                                <p className="text-sm text-slate-600 truncate pt-1">{box.items.join(', ')}</p>
                             </div>
-                            <p className="text-sm text-slate-600 truncate pl-16">{box.items.join(', ')}</p>
-                        </div>
-                    ))}
-                    <button onClick={() => setView('add')} className="fixed bottom-6 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-transform">
-                        <Icon d={Icons.plus} /> <span className="font-bold pr-2">Add Box</span>
-                    </button>
+                        ))}
+                    </div>
+                    <button onClick={() => setView('add')} className="fixed bottom-6 right-6 bg-black text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-gray-800 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
                 </div>
             );
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>
-
-
