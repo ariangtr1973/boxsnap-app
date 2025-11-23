@@ -15,22 +15,22 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- ⬇️ PASTE YOUR FIREBASE CONFIG HERE ⬇️ ---
+        // --- YOUR CONFIGURATION ---
         const firebaseConfig = {
-           apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
-  authDomain: "boxsnap-b5d3d.firebaseapp.com",
-  projectId: "boxsnap-b5d3d",
-  storageBucket: "boxsnap-b5d3d.firebasestorage.app",
-  messagingSenderId: "792190274154",
-  appId: "1:792190274154:web:8f251191a14387b2365813"
+            apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
+            authDomain: "boxsnap-b5d3d.firebaseapp.com",
+            projectId: "boxsnap-b5d3d",
+            storageBucket: "boxsnap-b5d3d.firebasestorage.app",
+            messagingSenderId: "792190274154",
+            appId: "1:792190274154:web:8f251191a14387b2365813"
         };
-        // --- ⬆️ END CONFIG ⬆️ ---
-
+        
         const APP_ID = "boxsnap-v1";
 
+        // Initialize Global Object
         window.boxsnap = { status: 'initializing', error: null };
 
-        if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5) {
+        if (firebaseConfig.apiKey) {
             try {
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
@@ -41,9 +41,10 @@
                 window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
                 window.appId = APP_ID;
                 
+                // Start Anonymous Auth
                 signInAnonymously(auth).catch(e => {
                     console.error("Auth Failed:", e);
-                    window.boxsnap.error = e.message;
+                    window.boxsnap.error = "Auth Failed: " + e.message;
                 });
                 window.boxsnap.status = 'ready';
                 
@@ -59,6 +60,7 @@
 
     <style>
         body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
 <body>
@@ -208,7 +210,7 @@
             if (dbStatus === 'missing_config' || dbStatus === 'error') return (
                 <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-red-50 text-center">
                     <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
-                    <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Paste Firebase Keys in index.html" : errorMsg}</p>
+                    <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Check Firebase Config in Code" : errorMsg}</p>
                 </div>
             );
 
@@ -220,6 +222,11 @@
                     <div className="mb-6">
                         <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
                         <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={e => handleSaveKey(e.target.value)} placeholder="AIza..." />
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key saved." : "Required for AI."}</p>
+                    </div>
+                    <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-200 mb-6">
+                        <div className="font-bold flex items-center gap-2 mb-1"><Icon d={Icons.cloud} className="w-5 h-5" /> Cloud Status</div>
+                        {user ? <p>✅ Connected</p> : <p>⏳ Connecting...</p>}
                     </div>
                     <button onClick={() => setShowSettings(false)} className="w-full mt-8 bg-slate-900 text-white py-3 rounded-xl font-bold">Close</button>
                 </div>
