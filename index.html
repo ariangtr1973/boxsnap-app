@@ -9,13 +9,13 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- FIREBASE SDK (v10.14.1 - Proven Stability) -->
+    <!-- FIREBASE SDK (v10.14.1) -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+        import { initializeApp, getApps, deleteApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-        // --- ✅ KEYS PRE-FILLED (DO NOT EDIT) ---
+        // --- ✅ HARDCODED CONFIGURATION ---
         const firebaseConfig = {
             apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
@@ -24,49 +24,59 @@
             messagingSenderId: "792190274154",
             appId: "1:792190274154:web:8f251191a14387b2365813"
         };
-        // -----------------------------------------
+        // ---------------------------------
 
         const APP_ID = "boxsnap-v1";
-
-        // Global status tracker
         window.boxsnap = { status: 'initializing', error: null, debugInfo: '' };
 
-        try {
-            // 1. Check Config
-            if (!firebaseConfig.apiKey) throw new Error("API Key is empty in code.");
-            window.boxsnap.debugInfo = `Key: ${firebaseConfig.apiKey.substring(0,4)}...`;
-
-            // 2. Initialize
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            
-            // 3. Expose to React
-            window.db = db;
-            window.auth = auth;
-            window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
-            window.appId = APP_ID;
-            
-            // 4. Auth Listener (Better than promise for stability)
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    console.log("Auth Success: " + user.uid);
-                    window.boxsnap.status = 'ready';
-                } else {
-                    console.log("Auth: Signing in...");
-                    signInAnonymously(auth).catch(e => {
-                        console.error("Auth Fail:", e);
-                        window.boxsnap.error = e.message;
-                        window.boxsnap.status = 'error';
-                    });
+        // --- CLEANUP & INITIALIZE ---
+        const initApp = async () => {
+            try {
+                // 1. Force cleanup of any stale app instances
+                if (getApps().length > 0) {
+                    await Promise.all(getApps().map(app => deleteApp(app)));
+                    console.log("Cleaned up stale Firebase apps.");
                 }
-            });
 
-        } catch (e) {
-            console.error("Setup Error:", e);
-            window.boxsnap.status = 'error';
-            window.boxsnap.error = e.message;
-        }
+                // 2. Validation
+                const keys = Object.keys(firebaseConfig);
+                const missing = ['apiKey', 'authDomain', 'projectId'].filter(k => !firebaseConfig[k]);
+                window.boxsnap.debugInfo = missing.length > 0 ? `Missing: ${missing.join(', ')}` : `Config OK (${keys.length} keys)`;
+
+                if (missing.length > 0) throw new Error(`Config missing: ${missing.join(', ')}`);
+
+                // 3. Initialize
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                
+                window.db = db;
+                window.auth = auth;
+                window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
+                window.appId = APP_ID;
+                
+                // 4. Auth
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        console.log("Auth Success:", user.uid);
+                        window.boxsnap.status = 'ready';
+                    } else {
+                        signInAnonymously(auth).catch(e => {
+                            console.error("Auth Fail:", e);
+                            window.boxsnap.error = `Auth Error: ${e.code || e.message}`;
+                            window.boxsnap.status = 'error';
+                        });
+                    }
+                });
+
+            } catch (e) {
+                console.error("Setup Error:", e);
+                window.boxsnap.status = 'error';
+                window.boxsnap.error = e.message;
+            }
+        };
+
+        initApp();
     </script>
 
     <style>
@@ -95,7 +105,6 @@
             alert: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
         };
 
-        // Custom confirmation (replaces alert/confirm for smoother UI)
         const customAlert = (message) => window.alert(message);
         const customConfirm = (message) => window.confirm(message);
 
@@ -119,9 +128,8 @@
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
             const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
-            // --- FIREBASE SYNC (Anti-Freeze) ---
+            // --- FIREBASE SYNC ---
             useEffect(() => {
-                // Check initial status
                 if (window.boxsnap.status === 'missing_config') {
                     setDbStatus('missing_config');
                     return;
@@ -129,16 +137,16 @@
                 setDbStatus('connecting');
                 setDebugInfo(window.boxsnap.debugInfo);
 
-                // Timeout Safety: 8 seconds before showing error
+                // Connection Doctor
                 const timeout = setTimeout(() => {
                     if (!user && dbStatus === 'connecting') {
                         setDbStatus('error');
-                        setErrorMsg("Connection Timeout. Browser may be blocking Google Firebase.");
+                        setErrorMsg("Connection Timeout. Check Internet.");
                     }
                 }, 8000);
 
                 const checkAuth = setInterval(() => {
-                    // Error catching from script
+                    // 1. Check global error
                     if (window.boxsnap.status === 'error') {
                         clearInterval(checkAuth);
                         setDbStatus('error');
@@ -146,6 +154,7 @@
                         return;
                     }
 
+                    // 2. Check Auth Success
                     if (window.auth && window.fs) {
                         clearInterval(checkAuth);
                         window.auth.onAuthStateChanged(u => {
@@ -159,14 +168,20 @@
                                 }, (err) => {
                                     console.error(err);
                                     setDbStatus('error');
-                                    setErrorMsg("Permission Denied. Did you publish rules?");
+                                    setErrorMsg("Database Permission Denied.");
                                 });
                             }
                         });
                     }
                 }, 500);
                 return () => { clearInterval(checkAuth); clearTimeout(timeout); };
-            }, [user]); 
+            }, [user]);
+
+            // --- DATA RESET ---
+            const resetData = () => {
+                localStorage.clear();
+                window.location.reload();
+            };
 
             // --- ACTIONS ---
             const handleSaveKey = (val) => {
@@ -238,15 +253,12 @@
                 <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-red-50 text-center">
                     <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
                         <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
-                        <p className="text-slate-600 text-sm mb-2 font-medium bg-red-50 p-2 rounded">{errorMsg || "Unknown Error"}</p>
-                        <div className="text-xs font-mono text-gray-400 mb-4">Key Present: {debugInfo}</div>
-                        <div className="text-xs text-left bg-slate-100 p-3 rounded mb-6 space-y-1">
-                            <p><strong>Fixes:</strong></p>
-                            <p>1. Turn OFF Brave Shields.</p>
-                            <p>2. Clear Browser Cache.</p>
-                            <p>3. Check Internet.</p>
+                        <p className="text-slate-600 text-sm mb-4 break-words bg-red-50 p-2 rounded">{errorMsg}</p>
+                        <div className="text-xs font-mono text-gray-400 mb-4">Debug: {debugInfo}</div>
+                        <div className="flex gap-2">
+                            <button onClick={() => window.location.reload()} className="flex-1 bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry</button>
+                            <button onClick={resetData} className="flex-1 bg-red-200 text-red-800 py-3 rounded-xl text-sm font-bold">Reset App Data</button>
                         </div>
-                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry</button>
                     </div>
                 </div>
             );
@@ -263,7 +275,7 @@
                     </div>
                     <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-200 mb-6">
                         <div className="font-bold flex items-center gap-2 mb-1"><Icon d={Icons.cloud} className="w-5 h-5" /> Cloud Status</div>
-                        {user ? <p>✅ Connected</p> : <p>⏳ Connecting...</p>}
+                        {user ? <p>✅ Connected (ID: {user.uid.slice(0,6)}...)</p> : <p>⏳ Connecting...</p>}
                     </div>
                     <button onClick={() => setShowSettings(false)} className="w-full mt-8 bg-slate-900 text-white py-3 rounded-xl font-bold">Close</button>
                 </div>
@@ -281,7 +293,6 @@
                         <span className="relative font-bold text-sm mt-1">Add Photo</span>
                     </div>
 
-                    {/* ALWAYS ACTIVE BUTTON */}
                     <button onClick={analyze} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2">
                         {isAnalyzing ? "Thinking..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Items</>}
                     </button>
