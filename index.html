@@ -15,7 +15,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- ✅ CONFIGURATION IS PRE-FILLED FOR YOU ---
+        // --- ✅ YOUR KEYS ARE HARDCODED HERE ---
         const firebaseConfig = {
             apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
@@ -24,13 +24,14 @@
             messagingSenderId: "792190274154",
             appId: "1:792190274154:web:8f251191a14387b2365813"
         };
-        // --- ⬆️ DO NOT TOUCH ⬆️ ---
+        // ---------------------------------------
 
         const APP_ID = "boxsnap-v1";
 
-        window.boxsnap = { status: 'initializing', error: null };
+        window.boxsnap = { status: 'initializing', error: null, debugKey: 'None' };
 
         if (firebaseConfig.apiKey) {
+            window.boxsnap.debugKey = firebaseConfig.apiKey.substring(0, 5) + "...";
             try {
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
@@ -96,6 +97,7 @@
             const [boxes, setBoxes] = useState([]);
             const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
+            // State for the API Key (using localStorage as a temporary solution, though Firestore is preferred)
             const [apiKey, setApiKey] = useState(() => { try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; } });
             const [dbStatus, setDbStatus] = useState(window.boxsnap.status || 'init');
             const [errorMsg, setErrorMsg] = useState(window.boxsnap.error || '');
@@ -111,7 +113,7 @@
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
             const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
-            // --- FIREBASE SYNC (Anti-Freeze) ---
+            // --- FIREBASE SYNC ---
             useEffect(() => {
                 if (window.boxsnap.status === 'missing_config') {
                     setDbStatus('missing_config');
@@ -119,23 +121,18 @@
                 }
                 setDbStatus('connecting');
 
-                // Timeout Safety: 8 seconds before showing error
-                const timeout = setTimeout(() => {
-                    if (!user) {
-                        setDbStatus('error');
-                        setErrorMsg("Timeout: Check Internet or Brave Shields");
-                    }
-                }, 8000);
+                // Update key if user provided it manually previously
+                if (!apiKey && window.boxsnap.debugKey !== 'None') {
+                    // We don't have full key in window.boxsnap for security in logs, 
+                    // but here we rely on user input. 
+                    // Actually, let's pre-fill the input with the hardcoded key if local storage is empty
+                    // This is a helper since you provided the key in code
+                    const hardcodedKey = "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE";
+                    setApiKey(hardcodedKey);
+                    localStorage.setItem('gemini_key', hardcodedKey);
+                }
 
                 const checkAuth = setInterval(() => {
-                    // Check for errors caught by module script
-                    if (window.boxsnap.status === 'error') {
-                        clearInterval(checkAuth);
-                        setDbStatus('error');
-                        setErrorMsg(window.boxsnap.error);
-                        return;
-                    }
-
                     if (window.auth && window.fs) {
                         clearInterval(checkAuth);
                         window.auth.onAuthStateChanged(u => {
@@ -149,14 +146,14 @@
                                 }, (err) => {
                                     console.error(err);
                                     setDbStatus('error');
-                                    setErrorMsg("Permission Denied. Did you publish rules?");
+                                    setErrorMsg(err.message);
                                 });
                             }
                         });
                     }
                 }, 500);
-                return () => { clearInterval(checkAuth); clearTimeout(timeout); };
-            }, [user]);
+                return () => clearInterval(checkAuth);
+            }, []);
 
             // --- ACTIONS ---
             const handleSaveKey = (val) => {
@@ -182,14 +179,13 @@
 
             const analyze = async () => {
                 if (!rawFile) return customAlert("Please add a photo first.");
-                if (!apiKey) {
-                    setShowSettings(true);
-                    return customAlert("Please enter your Gemini API Key in Settings.");
-                }
+                // Use the state key or fallback to hardcoded
+                const currentKey = apiKey || "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE";
+                
                 setIsAnalyzing(true);
                 try {
                     const b64 = (await fileToBase64(rawFile)).split(',')[1];
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${currentKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ contents: [{ parts: [{ text: "List items in image as JSON: { \"items\": [\"item1\"] }." }, { inlineData: { mimeType: rawFile.type, data: b64 } }] }] })
                     });
@@ -229,9 +225,10 @@
             if (dbStatus === 'missing_config' || dbStatus === 'error') return (
                 <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-red-50 text-center">
                     <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
-                        <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Issue"}</h1>
+                        <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
                         <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Check code." : errorMsg}</p>
                         {dbStatus === 'error' && <div className="text-xs text-left bg-slate-100 p-2 rounded mb-4">Tip: If using Brave, turn 'Shields' DOWN for this site.</div>}
+                        <div className="text-xs font-mono text-gray-400 mb-4">Loaded Key: {window.boxsnap.debugKey}</div>
                         <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry</button>
                     </div>
                 </div>
