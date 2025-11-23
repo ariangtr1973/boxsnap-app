@@ -9,13 +9,13 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- FIREBASE SDK -->
+    <!-- FIREBASE SDK (v10.14.1 - Proven Stability) -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-        // --- ✅ KEYS ARE PRE-FILLED ---
+        // --- ✅ KEYS PRE-FILLED (DO NOT EDIT) ---
         const firebaseConfig = {
             apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
@@ -24,39 +24,48 @@
             messagingSenderId: "792190274154",
             appId: "1:792190274154:web:8f251191a14387b2365813"
         };
-        
+        // -----------------------------------------
+
         const APP_ID = "boxsnap-v1";
 
-        window.boxsnap = { status: 'initializing', error: null, debugKey: 'None' };
+        // Global status tracker
+        window.boxsnap = { status: 'initializing', error: null, debugInfo: '' };
 
-        if (firebaseConfig.apiKey) {
-            window.boxsnap.debugKey = firebaseConfig.apiKey.substring(0, 5) + "...";
-            try {
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                const db = getFirestore(app);
-                
-                window.db = db;
-                window.auth = auth;
-                window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
-                window.appId = APP_ID;
-                
-                signInAnonymously(auth).then(() => {
-                    console.log("Firebase: Signed in anonymously.");
-                }).catch(e => {
-                    console.error("Auth Failed:", e);
-                    window.boxsnap.error = "Auth Blocked: " + e.message;
-                    window.boxsnap.status = 'error';
-                });
-                window.boxsnap.status = 'ready';
-                
-            } catch (e) {
-                console.error("Firebase Init Error:", e);
-                window.boxsnap.status = 'error';
-                window.boxsnap.error = "Init Failed: " + e.message;
-            }
-        } else {
-            window.boxsnap.status = 'missing_config';
+        try {
+            // 1. Check Config
+            if (!firebaseConfig.apiKey) throw new Error("API Key is empty in code.");
+            window.boxsnap.debugInfo = `Key: ${firebaseConfig.apiKey.substring(0,4)}...`;
+
+            // 2. Initialize
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            
+            // 3. Expose to React
+            window.db = db;
+            window.auth = auth;
+            window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
+            window.appId = APP_ID;
+            
+            // 4. Auth Listener (Better than promise for stability)
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    console.log("Auth Success: " + user.uid);
+                    window.boxsnap.status = 'ready';
+                } else {
+                    console.log("Auth: Signing in...");
+                    signInAnonymously(auth).catch(e => {
+                        console.error("Auth Fail:", e);
+                        window.boxsnap.error = e.message;
+                        window.boxsnap.status = 'error';
+                    });
+                }
+            });
+
+        } catch (e) {
+            console.error("Setup Error:", e);
+            window.boxsnap.status = 'error';
+            window.boxsnap.error = e.message;
         }
     </script>
 
@@ -71,7 +80,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- ICONS ---
         const Icon = ({ d, className="" }) => <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
         const Icons = {
             arrowLeft: "m12 19-7-7 7-7 M19 12H5",
@@ -87,6 +95,7 @@
             alert: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
         };
 
+        // Custom confirmation (replaces alert/confirm for smoother UI)
         const customAlert = (message) => window.alert(message);
         const customConfirm = (message) => window.confirm(message);
 
@@ -97,6 +106,7 @@
             const [apiKey, setApiKey] = useState(() => { try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; } });
             const [dbStatus, setDbStatus] = useState(window.boxsnap.status || 'init');
             const [errorMsg, setErrorMsg] = useState(window.boxsnap.error || '');
+            const [debugInfo, setDebugInfo] = useState(window.boxsnap.debugInfo || '');
 
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
@@ -109,21 +119,23 @@
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
             const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
-            // --- FIREBASE SYNC (Connection Doctor) ---
+            // --- FIREBASE SYNC (Anti-Freeze) ---
             useEffect(() => {
+                // Check initial status
                 if (window.boxsnap.status === 'missing_config') {
                     setDbStatus('missing_config');
                     return;
                 }
                 setDbStatus('connecting');
+                setDebugInfo(window.boxsnap.debugInfo);
 
-                // TIMEOUT RESCUE: If stuck for 5s, show error
+                // Timeout Safety: 8 seconds before showing error
                 const timeout = setTimeout(() => {
                     if (!user && dbStatus === 'connecting') {
                         setDbStatus('error');
                         setErrorMsg("Connection Timeout. Browser may be blocking Google Firebase.");
                     }
-                }, 5000);
+                }, 8000);
 
                 const checkAuth = setInterval(() => {
                     // Error catching from script
@@ -147,14 +159,14 @@
                                 }, (err) => {
                                     console.error(err);
                                     setDbStatus('error');
-                                    setErrorMsg("Database Access Denied. (Check Security Rules in Firebase Console)");
+                                    setErrorMsg("Permission Denied. Did you publish rules?");
                                 });
                             }
                         });
                     }
                 }, 500);
                 return () => { clearInterval(checkAuth); clearTimeout(timeout); };
-            }, [user]); // Re-run if user connects
+            }, [user]); 
 
             // --- ACTIONS ---
             const handleSaveKey = (val) => {
@@ -180,7 +192,6 @@
 
             const analyze = async () => {
                 if (!rawFile) return customAlert("Please add a photo first.");
-                // Use state key OR fallback to hardcoded config key if user hasn't set one
                 const activeKey = apiKey || "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE";
                 
                 setIsAnalyzing(true);
@@ -227,18 +238,15 @@
                 <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-red-50 text-center">
                     <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
                         <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
-                        <p className="text-slate-600 text-sm mb-4">{dbStatus === 'missing_config' ? "Check code." : errorMsg}</p>
-                        
-                        {dbStatus === 'error' && (
-                            <div className="bg-yellow-50 text-yellow-800 p-3 rounded-lg text-xs text-left mb-4 border border-yellow-100">
-                                <strong>Troubleshooting:</strong><br/>
-                                1. Check your internet connection.<br/>
-                                2. <strong>Turn off 'Shields' or AdBlockers</strong> for this site.<br/>
-                                3. Ensure Firebase Rules are published.
-                            </div>
-                        )}
-                        
-                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry Connection</button>
+                        <p className="text-slate-600 text-sm mb-2 font-medium bg-red-50 p-2 rounded">{errorMsg || "Unknown Error"}</p>
+                        <div className="text-xs font-mono text-gray-400 mb-4">Key Present: {debugInfo}</div>
+                        <div className="text-xs text-left bg-slate-100 p-3 rounded mb-6 space-y-1">
+                            <p><strong>Fixes:</strong></p>
+                            <p>1. Turn OFF Brave Shields.</p>
+                            <p>2. Clear Browser Cache.</p>
+                            <p>3. Check Internet.</p>
+                        </div>
+                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry</button>
                     </div>
                 </div>
             );
@@ -251,7 +259,7 @@
                     <div className="mb-6">
                         <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
                         <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={e => handleSaveKey(e.target.value)} placeholder="AIza..." />
-                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-slate-400'}`}>{apiKey ? "Key saved." : "Optional: Paste key to override default."}</p>
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key saved." : "Required for AI."}</p>
                     </div>
                     <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-200 mb-6">
                         <div className="font-bold flex items-center gap-2 mb-1"><Icon d={Icons.cloud} className="w-5 h-5" /> Cloud Status</div>
