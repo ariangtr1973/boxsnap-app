@@ -15,7 +15,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- YOUR CONFIGURATION (Pre-Filled) ---
+        // --- ✅ CONFIGURATION IS PRE-FILLED FOR YOU ---
         const firebaseConfig = {
             apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
@@ -24,10 +24,10 @@
             messagingSenderId: "792190274154",
             appId: "1:792190274154:web:8f251191a14387b2365813"
         };
-        
+        // --- ⬆️ DO NOT TOUCH ⬆️ ---
+
         const APP_ID = "boxsnap-v1";
 
-        // Initialize Global Object
         window.boxsnap = { status: 'initializing', error: null };
 
         if (firebaseConfig.apiKey) {
@@ -41,9 +41,9 @@
                 window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
                 window.appId = APP_ID;
                 
-                // Attempt Auth
+                // Start Auth
                 signInAnonymously(auth).then(() => {
-                    console.log("Auth Success");
+                    console.log("Firebase: Signed in anonymously.");
                 }).catch(e => {
                     console.error("Auth Failed:", e);
                     window.boxsnap.error = "Auth Failed: " + e.message;
@@ -156,7 +156,7 @@
                     }
                 }, 500);
                 return () => { clearInterval(checkAuth); clearTimeout(timeout); };
-            }, [user]); // Depend on user to clear timeout if connected
+            }, [user]);
 
             // --- ACTIONS ---
             const handleSaveKey = (val) => {
