@@ -38,7 +38,8 @@
             scan: "M3 7V5a2 2 0 0 1 2-2h2 M17 3h2a2 2 0 0 1 2 2v2 M21 17v2a2 2 0 0 1-2 2h-2 M7 21H5a2 2 0 0 1-2-2v-2 M12 12h.01",
             image: "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M11 14l2 2.4L16 13l3 4H5l4-4 2 1z",
             download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
-            upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12"
+            upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12",
+            share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13"
         };
 
         const QRScanner = ({ onScan, onClose }) => {
@@ -63,18 +64,14 @@
         };
 
         function App() {
-            // Use localStorage for persistence instead of Firebase
             const [boxes, setBoxes] = useState(() => {
                 try {
                     const saved = localStorage.getItem('boxsnap_local_data');
                     return saved ? JSON.parse(saved) : [];
-                } catch {
-                    return [];
-                }
+                } catch { return []; }
             });
             
             const [view, setView] = useState('dashboard');
-            
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
             
@@ -85,10 +82,7 @@
             const [searchQuery, setSearchQuery] = useState('');
             const [showSettings, setShowSettings] = useState(false);
 
-            // --- API Key State (Managed locally) ---
-            const [apiKey, setApiKey] = useState(() => {
-                return localStorage.getItem('gemini_key') || "";
-            });
+            const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
             
             const fileRef = useRef(null);
             const qrRef = useRef(null);
@@ -96,7 +90,6 @@
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
             const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
-            // --- PERSISTENCE ---
             useEffect(() => {
                 localStorage.setItem('boxsnap_local_data', JSON.stringify(boxes));
             }, [boxes]);
@@ -106,15 +99,34 @@
                 localStorage.setItem('gemini_key', val);
             };
 
-            // --- EXPORT / IMPORT ---
-            const exportData = () => {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(boxes));
-                const downloadAnchorNode = document.createElement('a');
-                downloadAnchorNode.setAttribute("href", dataStr);
-                downloadAnchorNode.setAttribute("download", "boxsnap_backup.json");
-                document.body.appendChild(downloadAnchorNode);
-                downloadAnchorNode.click();
-                downloadAnchorNode.remove();
+            // --- EXPORT / SHARE ---
+            const exportData = async () => {
+                const fileName = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
+                const json = JSON.stringify(boxes, null, 2);
+                const file = new File([json], fileName, { type: "application/json" });
+
+                // Try Native Share (Mobile)
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'BoxSnap Backup',
+                            text: 'Save this file to a specific folder on your device.'
+                        });
+                        return; 
+                    } catch (err) { console.log("Share cancelled/failed", err); }
+                }
+                
+                // Fallback Download
+                const url = URL.createObjectURL(file);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                alert("File downloaded. Check your Downloads folder.");
             };
 
             const importData = (e) => {
@@ -137,7 +149,6 @@
             };
 
             // --- HELPERS ---
-            
             const compressImage = (file) => new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
@@ -146,6 +157,7 @@
                     img.src = event.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
+                        // 1024px for good AI detail but low size
                         const MAX_WIDTH = 1024; 
                         const scaleSize = MAX_WIDTH / img.width;
                         canvas.width = MAX_WIDTH;
@@ -158,7 +170,6 @@
             });
 
             const generateQRCode = (boxId) => {
-                 // Simple URL scheme: app-url?box=ID
                  const url = `${window.location.href.split('?')[0]}?box=${boxId}`;
                  if(qrRef.current) {
                     qrRef.current.innerHTML = ""; 
@@ -167,11 +178,8 @@
             };
             
             useEffect(() => {
-                if (selectedBox && view === 'detail') {
-                    setTimeout(() => generateQRCode(selectedBox.id), 100);
-                }
+                if (selectedBox && view === 'detail') setTimeout(() => generateQRCode(selectedBox.id), 100);
             }, [selectedBox, view]);
-
 
             // --- ACTIONS ---
             const handlePhoto = async (e) => {
@@ -185,7 +193,6 @@
 
             const openBox = (box) => {
                 setSelectedBox(box);
-                // In Local Storage mode, the image is stored in the main object
                 setSelectedBoxImage(box.images[0] || null); 
                 setView('detail');
             };
@@ -202,7 +209,7 @@
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
                     
-                    // High-Detail prompt: Focus on reading labels and specifics
+                    // High-Detail Prompt
                     const prompt = `
                         Analyze this image of packed items. 
                         List every distinct item found. 
@@ -218,7 +225,6 @@
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
                     
-                    // Note: API returns a JSON string, which we parse and then extract the list
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
                     
                     setNewBox(p => ({
@@ -228,24 +234,18 @@
                     }));
 
                 } catch (e) { 
-                    alert("AI Error: " + (e.message.includes('API key expired') ? "Key Expired/Invalid. Get a new one." : e.message)); 
+                    alert("AI Error: " + e.message); 
                 }
                 setIsAnalyzing(false);
             };
 
-
             const saveBox = () => {
-                // Validation
                 if (!newBox.name) return alert("Error: Please enter a 'Box Name'.");
-                if (!newBox.items.length && !newBox.images.length) return alert("Error: Box is empty! Add items or a photo.");
                 
                 const newId = `box_${Date.now()}`;
                 const boxToSave = { ...newBox, id: newId, createdAt: Date.now() };
 
-                // Add to state
                 setBoxes(prev => [boxToSave, ...prev]);
-                
-                // Reset form
                 setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
                 setRawFile(null);
                 
@@ -254,7 +254,7 @@
             };
 
             const deleteBox = (id) => {
-                if(confirm("Are you sure you want to delete this box?")) {
+                if(confirm("Delete this box?")) {
                     setBoxes(prev => prev.filter(b => b.id !== id));
                     if (selectedBox && selectedBox.id === id) setSelectedBox(null);
                 }
@@ -264,11 +264,8 @@
                 setShowScanner(false);
                 const boxId = txt.includes('?box=') ? txt.split('?box=')[1] : txt;
                 const found = boxes.find(b => b.id === boxId);
-                if (found) {
-                    openBox(found);
-                } else {
-                    alert(`Box ID "${boxId}" not found in local inventory.`);
-                }
+                if (found) openBox(found); 
+                else alert(`Box ID "${boxId}" not found.`);
             };
 
             const filteredBoxes = boxes.filter(b => {
@@ -286,16 +283,13 @@
                          <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} /></button>
                     </div>
                     <div className="mb-6">
-                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key (Local Storage)</label>
-                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={e => saveKey(e.target.value)} placeholder="AIza..." />
-                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>
-                            {apiKey ? 'Key detected. AI features active.' : 'Required for AI detection.'}
-                        </p>
+                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
+                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={handleSaveKey} placeholder="AIza..." />
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mb-6">
                         <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center">
-                            <Icon d={Icons.download} className="mb-1" /> Backup
+                            <Icon d={Icons.share} className="mb-1" /> Save / Share
                         </button>
                         <button onClick={() => importRef.current.click()} className="p-4 border-2 border-green-100 bg-green-50 rounded-xl text-green-700 font-bold flex flex-col items-center">
                             <Icon d={Icons.upload} className="mb-1" /> Restore
@@ -304,11 +298,10 @@
                     </div>
                     
                     <p className="text-xs text-slate-500 p-3 bg-yellow-50 rounded-lg">
-                        ⚠️ **Warning:** This app saves data only to your browser. Clearing browser history will **delete all your boxes**.
+                        ⚠️ <strong>Note:</strong> Click "Save / Share" to choose a folder (Files/Drive) to save your data permanently.
                     </p>
                 </div>
             );
-
 
             // --- VIEW: ADD ---
             if (view === 'add') return (
@@ -361,9 +354,7 @@
                         {selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm shadow-sm">{item}</span>)}
                     </div>
                     <div className="text-center border-t pt-6">
-                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center">
-                             <span className="text-sm text-gray-500">QR Code</span>
-                        </div>
+                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
                         <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
                     </div>
                 </div>
