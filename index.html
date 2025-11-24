@@ -69,16 +69,12 @@
                 try {
                     const saved = localStorage.getItem('boxsnap_local_data');
                     return saved ? JSON.parse(saved) : [];
-                } catch {
-                    return [];
-                }
+                } catch { return []; }
             });
             
             const [view, setView] = useState('dashboard');
-            
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
-            
             const [selectedBox, setSelectedBox] = useState(null);
             const [selectedBoxImage, setSelectedBoxImage] = useState(null);
             const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -87,9 +83,7 @@
             const [showSettings, setShowSettings] = useState(false);
 
             // --- API Key State (Managed locally) ---
-            const [apiKey, setApiKey] = useState(() => {
-                return localStorage.getItem('gemini_key') || "";
-            });
+            const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
             
             const fileRef = useRef(null);
             const qrRef = useRef(null);
@@ -165,7 +159,6 @@
             };
 
             // --- HELPERS ---
-            
             const compressImage = (file) => new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
@@ -194,9 +187,7 @@
             };
             
             useEffect(() => {
-                if (selectedBox && view === 'detail') {
-                    setTimeout(() => generateQRCode(selectedBox.id), 100);
-                }
+                if (selectedBox && view === 'detail') setTimeout(() => generateQRCode(selectedBox.id), 100);
             }, [selectedBox, view]);
 
             // --- ACTIONS ---
@@ -226,12 +217,7 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    const prompt = `
-                        Analyze this image of packed items. 
-                        List every distinct item found. 
-                        IMPORTANT: If text is visible on packaging (brands, dimensions like '1/4 inch', '500 count'), INCLUDE IT in the item name (e.g., 'Screws - 1/4 inch x 3').
-                        Return ONLY a JSON object: { "items": ["Item 1 - details", "Item 2"], "name": "Suggested Box Name" }
-                    `;
+                    const prompt = `Analyze this image of packed items. List every distinct item found. IMPORTANT: If text is visible on packaging, INCLUDE IT in the item name. Return ONLY a JSON object: { "items": ["Item 1 - details", "Item 2"], "name": "Suggested Box Name" }`;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -240,7 +226,6 @@
                     
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
-                    
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
                     
                     setNewBox(p => ({
@@ -249,31 +234,26 @@
                         name: p.name || json.name || "" 
                     }));
 
-                } catch (e) { 
-                    alert("AI Error: " + (e.message.includes('API key expired') ? "Key Expired/Invalid. Get a new one." : e.message)); 
-                }
+                } catch (e) { alert("AI Error: " + e.message); }
                 setIsAnalyzing(false);
             };
 
             const saveBox = () => {
                 if (!newBox.name) return alert("Error: Please enter a 'Box Name'.");
-                if (!newBox.items.length && !newBox.images.length) return alert("Error: Box is empty! Add items or a photo.");
-                
                 const newId = `box_${Date.now()}`;
                 const boxToSave = { ...newBox, id: newId, createdAt: Date.now() };
-
                 setBoxes(prev => [boxToSave, ...prev]);
                 setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
                 setRawFile(null);
-                
                 alert("Box saved locally!");
                 setView('dashboard');
             };
 
             const deleteBox = (id) => {
-                if(confirm("Are you sure you want to delete this box?")) {
+                if(confirm("Delete this box?")) {
                     setBoxes(prev => prev.filter(b => b.id !== id));
                     if (selectedBox && selectedBox.id === id) setSelectedBox(null);
+                    setView('dashboard');
                 }
             };
 
@@ -281,11 +261,7 @@
                 setShowScanner(false);
                 const boxId = txt.includes('?box=') ? txt.split('?box=')[1] : txt;
                 const found = boxes.find(b => b.id === boxId);
-                if (found) {
-                    openBox(found);
-                } else {
-                    alert(`Box ID "${boxId}" not found in local inventory.`);
-                }
+                if (found) openBox(found); else alert(`Box ID "${boxId}" not found.`);
             };
 
             const filteredBoxes = boxes.filter(b => {
@@ -305,11 +281,7 @@
                     <div className="mb-6">
                         <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key (Local Storage)</label>
                         <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={handleSaveKey} placeholder="AIza..." />
-                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>
-                            {apiKey ? 'Key detected. AI features active.' : 'Required for AI detection.'}
-                        </p>
                     </div>
-                    
                     <div className="grid grid-cols-2 gap-3 mb-6">
                         <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center text-center">
                             <Icon d={Icons.download} className="mb-1" /> Save / Backup
@@ -319,13 +291,9 @@
                         </button>
                         <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
                     </div>
-                    
-                    <p className="text-xs text-slate-500 p-3 bg-yellow-50 rounded-lg">
-                        ⚠️ <strong>Tip:</strong> Click "Save / Backup" to pick a folder on your phone.
-                    </p>
+                    <p className="text-xs text-slate-500 p-3 bg-yellow-50 rounded-lg">⚠️ Warning: Data is saved in browser memory. Backup often!</p>
                 </div>
             );
-
 
             // --- VIEW: ADD ---
             if (view === 'add') return (
@@ -336,22 +304,17 @@
                     <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
                     <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
                         {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
-                        <span className="relative font-bold text-sm mt-1">Tap to Add Photo (Hold for text)</span>
+                        <span className="relative font-bold text-sm mt-1">Tap to Add Photo</span>
                     </div>
-                    
                     <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
                         {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
                     </button>
-                    
                     <div className="space-y-4 flex-1">
                         <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                        
                         <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
                             <div className="flex flex-wrap gap-2 mb-2">
                                 {newBox.items.map((item, i) => (
-                                    <span key={i} className="bg-white border px-2 py-1 rounded text-xs flex items-center gap-1 shadow-sm">
-                                        {item} <span onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))}>×</span>
-                                    </span>
+                                    <span key={i} className="bg-white border px-2 py-1 rounded text-xs flex items-center gap-1 shadow-sm">{item} <span onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))}>×</span></span>
                                 ))}
                             </div>
                             <input className="w-full bg-transparent text-sm outline-none" placeholder="Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, e.target.value]})); e.target.value = ''; }}} />
@@ -378,9 +341,7 @@
                         {selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm shadow-sm">{item}</span>)}
                     </div>
                     <div className="text-center border-t pt-6">
-                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center">
-                             <span className="text-sm text-gray-500">QR Code</span>
-                        </div>
+                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
                         <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
                     </div>
                 </div>
@@ -392,6 +353,8 @@
                     <div className="flex justify-between items-center mb-6">
                         <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap Offline</h1>
                         <div className="flex gap-2">
+                            {/* ADDED: Direct Backup Button on Dashboard */}
+                            <button onClick={exportData} className="p-3 bg-blue-600 text-white rounded-full shadow-lg"><Icon d={Icons.download} className="w-5 h-5" /></button>
                             <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-900 text-white rounded-full shadow-lg"><Icon d={Icons.settings} className="w-5 h-5" /></button>
                             <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
                         </div>
@@ -403,24 +366,20 @@
                     </div>
 
                     <div className="space-y-3">
-                        {boxes.map(box => {
-                            return (
-                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 active:scale-[.98] transition-transform">
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="font-bold text-lg text-slate-900">{box.name}</h3>
-                                        <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
-                                    </div>
-                                    
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {box.items.slice(0, 3).map((item, i) => {
-                                            const isMatch = searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase());
-                                            return <span key={i} className={`text-xs px-2 py-1 rounded border ${isMatch ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>;
-                                        })}
-                                        {box.items.length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
-                                    </div>
+                        {boxes.map(box => (
+                            <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 active:scale-[.98] transition-transform">
+                                <div className="flex justify-between items-start">
+                                    <h3 className="font-bold text-lg text-slate-900">{box.name}</h3>
+                                    <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
                                 </div>
-                            );
-                        })}
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                    {box.items.slice(0, 3).map((item, i) => (
+                                        <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>
+                                    ))}
+                                    {box.items.length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                     
                     <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
