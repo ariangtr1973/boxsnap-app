@@ -16,9 +16,10 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-        // --- ✅ CONFIGURATION ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
+        // --- ✅ UPDATE WITH FRESH KEY ---
+        // Moving this to window so it is globally accessible and avoids ReferenceError
+        window.firebaseConfig = {
+            apiKey: "PASTE_NEW_KEY_HERE", // <-- New key goes here
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
             projectId: "boxsnap-b5d3d",
             storageBucket: "boxsnap-b5d3d.firebasestorage.app",
@@ -30,35 +31,39 @@
 
         window.boxsnap = { status: 'initializing', error: null };
 
-        try {
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            
-            window.db = db;
-            window.auth = auth;
-            // Added getDoc for fetching heavy image data on demand
-            window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc };
-            window.appId = APP_ID;
-            
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    window.currentUser = user;
-                    if(window.initListener) window.initListener(user);
-                } else {
-                    signInAnonymously(auth).catch(e => console.error(e));
-                }
-            });
-        } catch (e) {
-            window.boxsnap.error = e.message;
+        // Only initialize if the key has been replaced
+        if (window.firebaseConfig.apiKey && window.firebaseConfig.apiKey !== "PASTE_NEW_KEY_HERE") {
+            try {
+                const app = initializeApp(window.firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                
+                window.db = db;
+                window.auth = auth;
+                window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc };
+                window.appId = APP_ID;
+                
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        window.currentUser = user;
+                        if(window.initListener) window.initListener(user);
+                    } else {
+                        signInAnonymously(auth).catch(e => console.error(e));
+                    }
+                });
+            } catch (e) {
+                window.boxsnap.error = e.message;
+            }
+        } else {
+            console.warn("Firebase API Key not set. Update the code.");
         }
     </script>
 
     <style>
         body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        .fade-in { animation: fadeIn 0.2s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
@@ -103,14 +108,17 @@
             const [boxes, setBoxes] = useState([]);
             const [user, setUser] = useState(window.currentUser || null);
             const [view, setView] = useState('dashboard');
-            const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE");
+            
+            // --- API KEY LOGIC ---
+            const [apiKey, setApiKey] = useState(() => {
+                return localStorage.getItem('gemini_key') || (window.firebaseConfig && window.firebaseConfig.apiKey);
+            });
             
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
             const [isAnalyzing, setIsAnalyzing] = useState(false);
             const [isSaving, setIsSaving] = useState(false);
             
-            // Selected box is now fetched asynchronously for images
             const [selectedBox, setSelectedBox] = useState(null);
             const [selectedBoxImage, setSelectedBoxImage] = useState(null);
             const [isLoadingImage, setIsLoadingImage] = useState(false);
@@ -129,7 +137,6 @@
                     const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
                     window.fs.onSnapshot(q, (snap) => {
                         const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                        // We do NOT load images here. Images are lazy-loaded.
                         setBoxes(list.sort((a,b) => b.createdAt - a.createdAt));
                     });
                 };
@@ -190,12 +197,15 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
+                    
+                    // Note: Using the key from state (which comes from config or local storage)
                     const prompt = `Analyze this image. List distinct items. Include visible text/brands. Return JSON: { "items": ["Item 1", "Item 2"] }`;
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: b64 } }] }] })
                     });
                     const data = await res.json();
+                    if (data.error) throw new Error(data.error.message);
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
                     setNewBox(p => ({...p, items: [...new Set([...p.items, ...json.items])]}));
                 } catch (e) { alert("AI Error: " + e.message); }
@@ -234,12 +244,19 @@
                 if(confirm("Delete?")) await window.fs.deleteDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, id));
             };
 
+            const handleScan = (txt) => {
+                setShowScanner(false);
+                const boxId = txt.includes('?id=') ? txt.split('?id=')[1] : txt;
+                const found = boxes.find(b => b.id === boxId);
+                found ? openBox(found) : alert("Not found.");
+            };
+
             const filteredBoxes = boxes.filter(b => {
                 const q = searchQuery.toLowerCase();
                 return !q || b.name.toLowerCase().includes(q) || b.items.some(i => i.toLowerCase().includes(q));
             });
 
-            if (showScanner) return <QRScanner onScan={(txt) => { setShowScanner(false); const id = txt.includes('?id=') ? txt.split('?id=')[1] : txt; const found = boxes.find(b => b.id === id); found ? openBox(found) : alert("Not found"); }} onClose={() => setShowScanner(false)} />;
+            if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
 
             // --- VIEW: ADD ---
             if (view === 'add') return (
@@ -248,26 +265,31 @@
                         <span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box
                     </div>
                     <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
-                    <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 overflow-hidden cursor-pointer relative">
+                    <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
                         {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
-                        <span className="relative font-bold text-sm mt-1 bg-white/80 px-2 rounded">{newBox.images[0] ? 'Change' : 'Add Photo'}</span>
+                        <span className="relative font-bold text-sm mt-1">Add Photo</span>
                     </div>
                     <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 disabled:bg-gray-200 disabled:text-gray-500">
-                        {isAnalyzing ? "Thinking..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> AI Detect</>}
+                        {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details</>}
                     </button>
                     <div className="space-y-4 flex-1">
                         <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
+                        
                         <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
                             <div className="flex flex-wrap gap-2 mb-2">
                                 {newBox.items.map((item, i) => (
-                                    <span key={i} className="bg-white border px-2 py-1 rounded text-xs flex items-center gap-1 shadow-sm">{item} <span onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))}>×</span></span>
+                                    <span key={i} className="bg-white border px-2 py-1 rounded text-xs flex items-center gap-1 shadow-sm">
+                                        {item} <span onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))}>×</span>
+                                    </span>
                                 ))}
                             </div>
-                            <input className="w-full bg-transparent text-sm outline-none" placeholder="Type item..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, e.target.value]})); e.target.value = ''; }}} />
+                            <input className="w-full bg-transparent text-sm outline-none" placeholder="Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, e.target.value]})); e.target.value = ''; }}} />
                         </div>
                         <select className="w-full p-3 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
                     </div>
-                    <button onClick={saveBox} disabled={isSaving} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2 disabled:bg-green-800">{isSaving ? "Saving..." : "Save Box"}</button>
+                    <button onClick={saveBox} disabled={isSaving} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2 disabled:bg-green-800">
+                        {isSaving ? "Saving..." : <><Icon d={Icons.check} className="w-5 h-5"/> Save</>}
+                    </button>
                 </div>
             );
 
@@ -306,24 +328,27 @@
                     </div>
 
                     <div className="space-y-3">
-                        {filteredBoxes.map(box => (
-                            <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="font-bold text-lg text-slate-900">{box.name}</h3>
-                                    <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
+                        {filteredBoxes.map(box => {
+                            return (
+                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500">
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-bold text-lg text-slate-900">{box.name}</h3>
+                                        <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
+                                    </div>
+                                    
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {box.items.slice(0, 3).map((item, i) => {
+                                            const isMatch = searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase());
+                                            return <span key={i} className={`text-xs px-2 py-1 rounded border ${isMatch ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>;
+                                        })}
+                                        {box.items.length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
+                                    </div>
                                 </div>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                    {box.items.slice(0, 3).map((item, i) => {
-                                        const isMatch = searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase());
-                                        return <span key={i} className={`text-xs px-2 py-1 rounded border ${isMatch ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>;
-                                    })}
-                                    {box.items.length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                     
-                    <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Box</span></button>
+                    <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
                 </div>
             );
         }
