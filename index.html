@@ -8,15 +8,10 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- FIREBASE SDK (v10.14.1) -->
-    <script type="module">
-        import { initializeApp, getApps, deleteApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-        // --- ✅ HARDCODED CONFIGURATION ---
-        const firebaseConfig = {
+    <!-- ✅ INSTANT CONFIGURATION (Loads before anything else) -->
+    <script>
+        window.BOXSNAP_CONFIG = {
             apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
             projectId: "boxsnap-b5d3d",
@@ -24,21 +19,22 @@
             messagingSenderId: "792190274154",
             appId: "1:792190274154:web:8f251191a14387b2365813"
         };
-        // ---------------------------------
+        window.APP_ID = "boxsnap-v1";
+        // Pre-set the status to prevent "missing config" race conditions
+        window.boxsnap = { status: 'initializing', error: null };
+    </script>
+    
+    <!-- FIREBASE SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const APP_ID = "boxsnap-v1";
-        window.boxsnap = { status: 'initializing', error: null, debugInfo: '', defaultKey: firebaseConfig.apiKey };
+        // Use the global config we defined above
+        const firebaseConfig = window.BOXSNAP_CONFIG;
 
-        // --- CLEANUP & INITIALIZE ---
-        const initApp = async () => {
+        if (firebaseConfig.apiKey) {
             try {
-                // 1. Force cleanup of any stale app instances
-                if (getApps().length > 0) {
-                    await Promise.all(getApps().map(app => deleteApp(app)));
-                    console.log("Cleaned up stale Firebase apps.");
-                }
-
-                // 2. Initialize
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
                 const db = getFirestore(app);
@@ -46,30 +42,21 @@
                 window.db = db;
                 window.auth = auth;
                 window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
-                window.appId = APP_ID;
                 
-                // 3. Auth
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        console.log("Auth Success:", user.uid);
-                        window.boxsnap.status = 'ready';
-                    } else {
-                        signInAnonymously(auth).catch(e => {
-                            console.error("Auth Fail:", e);
-                            window.boxsnap.error = `Auth Error: ${e.code || e.message}`;
-                            window.boxsnap.status = 'error';
-                        });
-                    }
+                signInAnonymously(auth).catch(e => {
+                    console.error("Auth Failed:", e);
+                    window.boxsnap.error = e.message;
                 });
-
+                window.boxsnap.status = 'ready';
+                
             } catch (e) {
-                console.error("Setup Error:", e);
+                console.error("Firebase Init Error:", e);
                 window.boxsnap.status = 'error';
-                window.boxsnap.error = e.message;
+                window.boxsnap.error = "Init Failed: " + e.message;
             }
-        };
-
-        initApp();
+        } else {
+            window.boxsnap.status = 'missing_config';
+        }
     </script>
 
     <style>
@@ -106,19 +93,14 @@
             const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
             
-            // --- ⚡️ FIX: Initialize API Key from global default if local is empty ---
+            // --- ⚡️ FIXED: Pull key from global config (guaranteed to exist) ---
             const [apiKey, setApiKey] = useState(() => { 
-                try { 
-                    return localStorage.getItem('gemini_key') || window.boxsnap.defaultKey || ''; 
-                } catch { 
-                    return window.boxsnap.defaultKey || ''; 
-                } 
+                // Priority: Config file > Local Storage
+                return window.BOXSNAP_CONFIG?.apiKey || localStorage.getItem('gemini_key') || ''; 
             });
 
             const [dbStatus, setDbStatus] = useState(window.boxsnap.status || 'init');
             const [errorMsg, setErrorMsg] = useState(window.boxsnap.error || '');
-            const [debugInfo, setDebugInfo] = useState(window.boxsnap.debugInfo || '');
-
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
             const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -137,23 +119,15 @@
                     return;
                 }
                 setDbStatus('connecting');
-                setDebugInfo(window.boxsnap.debugInfo);
 
                 const timeout = setTimeout(() => {
                     if (!user && dbStatus === 'connecting') {
                         setDbStatus('error');
-                        setErrorMsg("Connection Timeout. Check Internet.");
+                        setErrorMsg("Connection Timeout. Check Internet or Cloud Console Allowlist.");
                     }
                 }, 8000);
 
                 const checkAuth = setInterval(() => {
-                    if (window.boxsnap.status === 'error') {
-                        clearInterval(checkAuth);
-                        setDbStatus('error');
-                        setErrorMsg(window.boxsnap.error);
-                        return;
-                    }
-
                     if (window.auth && window.fs) {
                         clearInterval(checkAuth);
                         window.auth.onAuthStateChanged(u => {
@@ -167,7 +141,7 @@
                                 }, (err) => {
                                     console.error(err);
                                     setDbStatus('error');
-                                    setErrorMsg("Database Permission Denied.");
+                                    setErrorMsg("Permission Denied. Please update Firestore Rules.");
                                 });
                             }
                         });
@@ -200,8 +174,9 @@
 
             const analyze = async () => {
                 if (!rawFile) return customAlert("Please add a photo first.");
-                // Use state key
-                const activeKey = apiKey;
+                
+                // ⚡️ Use the state key which is now guaranteed to have the config value
+                const activeKey = apiKey; 
                 
                 setIsAnalyzing(true);
                 try {
@@ -248,11 +223,13 @@
                     <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
                         <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
                         <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Check code." : errorMsg}</p>
-                        <div className="text-xs font-mono text-gray-400 mb-4">Debug: {debugInfo}</div>
-                        <div className="flex gap-2">
-                            <button onClick={() => window.location.reload()} className="flex-1 bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry</button>
-                            <button onClick={() => {localStorage.clear(); window.location.reload();}} className="flex-1 bg-red-200 text-red-800 py-3 rounded-xl text-sm font-bold">Reset Data</button>
+                        <div className="text-xs bg-slate-100 p-2 rounded text-left">
+                            <strong>Troubleshoot:</strong><br/>
+                            1. Check Google Cloud Console > Authorized Origins<br/>
+                            2. Ensure 'https://ariangtr1973.github.io' is added.<br/>
+                            3. Disable Brave Shields.
                         </div>
+                        <button onClick={() => window.location.reload()} className="w-full mt-4 bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry</button>
                     </div>
                 </div>
             );
@@ -264,8 +241,8 @@
                     </div>
                     <div className="mb-6">
                         <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
-                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={e => handleSaveKey(e.target.value)} placeholder="AIza..." />
-                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key loaded automatically." : "Required for AI."}</p>
+                        <input className="w-full p-3 border rounded-xl font-mono text-sm bg-gray-50" type="password" value={apiKey} onChange={e => handleSaveKey(e.target.value)} placeholder="AIza..." />
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key loaded from config." : "Required for AI."}</p>
                     </div>
                     <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-200 mb-6">
                         <div className="font-bold flex items-center gap-2 mb-1"><Icon d={Icons.cloud} className="w-5 h-5" /> Cloud Status</div>
