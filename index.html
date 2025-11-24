@@ -64,6 +64,7 @@
         };
 
         function App() {
+            // Use localStorage for persistence instead of Firebase
             const [boxes, setBoxes] = useState(() => {
                 try {
                     const saved = localStorage.getItem('boxsnap_local_data');
@@ -157,7 +158,6 @@
                     img.src = event.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        // 1024px for good AI detail but low size
                         const MAX_WIDTH = 1024; 
                         const scaleSize = MAX_WIDTH / img.width;
                         canvas.width = MAX_WIDTH;
@@ -209,7 +209,6 @@
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
                     
-                    // High-Detail Prompt
                     const prompt = `
                         Analyze this image of packed items. 
                         List every distinct item found. 
@@ -241,6 +240,7 @@
 
             const saveBox = () => {
                 if (!newBox.name) return alert("Error: Please enter a 'Box Name'.");
+                if (!newBox.items.length && !newBox.images.length) return alert("Error: Box is empty! Add items or a photo.");
                 
                 const newId = `box_${Date.now()}`;
                 const boxToSave = { ...newBox, id: newId, createdAt: Date.now() };
@@ -254,7 +254,7 @@
             };
 
             const deleteBox = (id) => {
-                if(confirm("Delete this box?")) {
+                if(confirm("Are you sure you want to delete this box?")) {
                     setBoxes(prev => prev.filter(b => b.id !== id));
                     if (selectedBox && selectedBox.id === id) setSelectedBox(null);
                 }
@@ -264,8 +264,11 @@
                 setShowScanner(false);
                 const boxId = txt.includes('?box=') ? txt.split('?box=')[1] : txt;
                 const found = boxes.find(b => b.id === boxId);
-                if (found) openBox(found); 
-                else alert(`Box ID "${boxId}" not found.`);
+                if (found) {
+                    openBox(found);
+                } else {
+                    alert(`Box ID "${boxId}" not found in local inventory.`);
+                }
             };
 
             const filteredBoxes = boxes.filter(b => {
@@ -283,8 +286,11 @@
                          <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} /></button>
                     </div>
                     <div className="mb-6">
-                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
+                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key (Local Storage)</label>
                         <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={handleSaveKey} placeholder="AIza..." />
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>
+                            {apiKey ? 'Key detected. AI features active.' : 'Required for AI detection.'}
+                        </p>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mb-6">
@@ -302,6 +308,7 @@
                     </p>
                 </div>
             );
+
 
             // --- VIEW: ADD ---
             if (view === 'add') return (
@@ -354,7 +361,9 @@
                         {selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm shadow-sm">{item}</span>)}
                     </div>
                     <div className="text-center border-t pt-6">
-                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
+                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center">
+                             <span className="text-sm text-gray-500">QR Code</span>
+                        </div>
                         <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
                     </div>
                 </div>
