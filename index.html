@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -252,7 +252,8 @@
                         if(window.initListener) window.initListener(activeUser);
                     } catch (e) {
                         setIsSaving(false);
-                        return alert("Network Error: Could not connect to cloud. Check internet.");
+                        // THIS IS THE NEW ERROR MESSAGE
+                        return alert(`Auth Error: ${e.message}. Check 'Identity Toolkit API' in Google Cloud Console.`);
                     }
                 }
 
@@ -279,7 +280,8 @@
                     setView('dashboard');
                 } catch (e) { 
                     setIsSaving(false); 
-                    alert("Save Failed: " + e.message); 
+                    // THIS IS THE OTHER NEW ERROR MESSAGE
+                    alert(`Save Error: ${e.message}. Check 'Cloud Firestore API' in Google Cloud Console.`); 
                 }
             };
 
