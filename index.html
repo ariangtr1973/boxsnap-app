@@ -1,472 +1,354 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BoxSnap Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- FIREBASE SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- ⬇️ PASTE YOUR FIREBASE CONFIG HERE ⬇️ ---
+        const firebaseConfig = {
+  apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
+  authDomain: "boxsnap-b5d3d.firebaseapp.com",
+  projectId: "boxsnap-b5d3d",
+  storageBucket: "boxsnap-b5d3d.firebasestorage.app",
+  messagingSenderId: "792190274154",
+  appId: "1:792190274154:web:8f251191a14387b2365813"
+};
+        // --- ⬆️ END CONFIG ⬆️ ---
+
+        // App ID for database storage path
+        const APP_ID = "boxsnap-mobile-v1";
+
+        // Initialize Firebase Global Object
+        window.boxsnap = {
+            status: 'initializing',
+            error: null
+        };
+
+        const hasConfig = firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5;
+        
+        if (hasConfig) {
+            console.log("Firebase Check: Config keys found. Initializing Firebase...");
+            try {
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                
+                window.db = db;
+                window.auth = auth;
+                window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
+                window.appId = APP_ID;
+                window.boxsnap.status = 'ready';
+
+                signInAnonymously(auth).then(() => {
+                    console.log("Firebase Auth: Anonymous sign-in successful.");
+                }).catch(e => {
+                    console.error("Firebase Auth Error:", e);
+                    window.boxsnap.error = "Auth Failed: " + e.message;
+                });
+                
+            } catch (e) {
+                console.error("Firebase Initialization Critical Error:", e);
+                window.boxsnap.status = 'error';
+                window.boxsnap.error = "Init Failed: " + e.message;
+            }
+        } else {
+            console.warn("Firebase Check: API Key is missing or too short. Skipping initialization.");
+            window.boxsnap.status = 'missing_config';
+        }
+    </script>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f7fafc; }
-        .main-container { max-width: 1000px; margin: 0 auto; min-height: 100vh; }
-        .card { background-color: white; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05); }
-        .btn-primary { transition: all .2s; background-color: #10B981; }
-        .btn-primary:hover { background-color: #059669; }
-        .btn-primary:active { transform: scale(.98); }
-        #message-box { position: fixed; top: 50%; left:50%; transform: translate(-50%,-50%); z-index:1000; padding:1rem 2rem; border-radius:.75rem; box-shadow: 0 0 20px rgba(0,0,0,.3); display:none; text-align:center; }
+        body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
 <body>
-    <div id="app" class="main-container p-4 sm:p-6 lg:p-8">
-        <div id="message-box" class="card"></div>
+    <div id="root"></div>
 
-        <header class="flex justify-between items-center py-4 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 flex items-center">
-                <!-- icon -->
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8 mr-2 text-emerald-500">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25m17.25 0a.75.75 0 0 0-.75-.75H3.75a.75.75 0 0 0-.75.75" />
-                </svg>
-                BoxSnap Cloud
-            </h1>
-            <div class="flex items-center gap-3">
-                <button id="settings-btn" class="text-gray-500 hover:text-emerald-500 transition-colors">Settings</button>
-            </div>
-        </header>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-        <div id="content"></div>
-
-        <button id="add-box-btn" class="fixed bottom-6 right-6 p-4 rounded-full bg-emerald-600 text-white shadow-lg hover:bg-emerald-700 transition-colors flex items-center hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-            <span class="ml-2">Add Box</span>
-        </button>
-    </div>
-
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            doc, 
-            setDoc, 
-            onSnapshot, 
-            collection,
-            query, 
-            orderBy, 
-            serverTimestamp,
-            deleteDoc
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        setLogLevel('Debug');
-
-        // NOTE: The app expects a global __firebase_config JSON string injected by hosting or dev environment.
-        // If not provided, set firebaseConfig here (ONLY for local testing). Replace with your real config if needed.
-        const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) ? JSON.parse(__firebase_config) : (window.__LOCAL_FIREBASE_CONFIG || null);
-
-        // appId: prefer firebase projectId so storage paths align with your Firestore structure
-        let appId = 'boxsnap-v1';
-
-        // Gemini key stored in localStorage under 'gemini_key'
-        const storedGeminiKey = (() => { try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; } })();
-
-        // runtime state
-        let app, db, auth;
-        let userId = null;
-        let isAuthReady = false;
-        let currentView = { view: 'list', boxId: null };
-        let unsubscribeBoxes = null;
-        let boxListState = [];
-
-        // ----- Utility -----
-        function showMessage(text, isError=false, duration=3000) {
-            const m = document.getElementById('message-box');
-            m.textContent = text;
-            m.className = 'card ' + (isError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800');
-            m.style.display = 'block';
-            setTimeout(()=>{ m.style.display = 'none'; }, duration);
-        }
-
-        function navigate(view, boxId=null) {
-            currentView = { view, boxId };
-            render();
-            document.getElementById('add-box-btn').classList.toggle('hidden', view !== 'list');
-        }
-
-        // ----- Firebase init / auth fix -----
-        async function initializeFirebase() {
-            if (!firebaseConfig) {
-                renderConnectionFailed("auth/configuration-not-found", "Firebase configuration is missing. Provide __firebase_config or set window.__LOCAL_FIREBASE_CONFIG for testing.");
-                return;
-            }
-
-            try {
-                // set appId from projectId if available
-                if (firebaseConfig.projectId) appId = firebaseConfig.projectId;
-
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                // Proper onAuthStateChanged flow:
-                const authPromise = new Promise((resolve, reject) => {
-                    const unsub = onAuthStateChanged(auth, async (u) => {
-                        if (u) {
-                            userId = u.uid;
-                            isAuthReady = true;
-                            unsub();
-                            resolve(u);
-                        } else {
-                            // no user yet - attempt sign-in
-                            try {
-                                const token = (typeof __initial_auth_token !== 'undefined') ? __initial_auth_token : null;
-                                if (token) {
-                                    await signInWithCustomToken(auth, token);
-                                } else {
-                                    await signInAnonymously(auth);
-                                }
-                                // next onAuthStateChanged call will resolve
-                            } catch (e) {
-                                // fallback: assign a local random id so UI doesn't crash, but warn
-                                userId = crypto.randomUUID();
-                                isAuthReady = true;
-                                unsub();
-                                console.error("Auth fallback (anonymous) failed:", e);
-                                // still resolve to let UI proceed — user will get DB failures if Firestore rules block unauth.
-                                resolve(null);
-                            }
-                        }
-                    }, (err) => {
-                        unsub();
-                        reject(err);
-                    });
-                });
-
-                await authPromise;
-                // start rendering
-                navigate('list');
-            } catch (err) {
-                console.error("Firebase initialization error:", err);
-                renderConnectionFailed(err.code || 'init-error', err.message || String(err), firebaseConfig.apiKey);
-            }
-        }
-
-        // ----- Firestore functions -----
-        const getPrivateCollectionPath = (collectionName) => `artifacts/${appId}/users/${userId}/${collectionName}`;
-
-        function subscribeToBoxes(setBoxes) {
-            if (!isAuthReady || !userId || !db) return;
-            if (unsubscribeBoxes) unsubscribeBoxes();
-
-            const boxesRef = collection(db, getPrivateCollectionPath('boxes'));
-            const q = query(boxesRef); // basic query — ordering done in-memory
-            unsubscribeBoxes = onSnapshot(q, (snapshot) => {
-                const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                // normalize timestamp and sort
-                list.sort((a,b) => {
-                    const tA = a.timestamp ? a.timestamp.toMillis() : 0;
-                    const tB = b.timestamp ? b.timestamp.toMillis() : 0;
-                    return tB - tA;
-                });
-                setBoxes(list);
-            }, (err) => {
-                console.error("subscribeToBoxes error:", err);
-                showMessage("Real-time DB error. Check rules/console.", true);
-            });
-            return unsubscribeBoxes;
-        }
-
-        async function saveBoxToCloud(boxData) {
-            if (!isAuthReady || !userId || !db) {
-                showMessage("Auth not ready. Cannot save.", true);
-                return { success:false, error: "Auth not ready" };
-            }
-            const boxesPath = getPrivateCollectionPath('boxes');
-            const boxRef = boxData.id ? doc(db, boxesPath, boxData.id) : doc(collection(db, boxesPath));
-            const dataToSave = {
-                ...boxData,
-                timestamp: serverTimestamp(),
-                userId
-            };
-            try {
-                await setDoc(boxRef, dataToSave, { merge: true });
-                return { success: true, id: boxRef.id };
-            } catch (err) {
-                console.error("saveBoxToCloud error:", err);
-                return { success:false, error: err.message || String(err) };
-            }
-        }
-
-        // ----- Gemini AI helpers (uses key from localStorage) -----
-        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
-        const API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-
-        async function fetchWithBackoff(url, options, maxRetries=4) {
-            for (let i=0;i<maxRetries;i++){
-                try {
-                    const r = await fetch(url, options);
-                    if (!r.ok) {
-                        const errBody = await r.text().catch(()=>null);
-                        throw new Error(`Status ${r.status} - ${errBody || r.statusText}`);
-                    }
-                    return await r.json();
-                } catch (err) {
-                    if (i === maxRetries-1) throw err;
-                    const delay = Math.pow(2, i) * 500 + Math.random()*300;
-                    await new Promise(res => setTimeout(res, delay));
-                }
-            }
-        }
-
-        function currentGeminiKey() {
-            try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; }
-        }
-
-        async function detectItemsFromImage(imageData, userPrompt='') {
-            const key = currentGeminiKey();
-            if (!key) { showMessage('Gemini API key missing — open Settings to paste it.', true); return null; }
-            const apiUrl = `${API_BASE_URL}/${MODEL_NAME}:generateContent?key=${key}`;
-            const prompt = `List distinct items visible in this image, comma-separated, then a short box name. Output ONLY a JSON object {"items": "...", "box_name": "..."} with no extra text. Context:${userPrompt}`;
-            const payload = {
-                contents: [{
-                    role: "user",
-                    parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: imageData } }]
-                }]
-            };
-            try {
-                const resp = await fetchWithBackoff(apiUrl, { method:'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-                const jsonText = resp?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!jsonText) throw new Error("Empty response from Gemini");
-                return JSON.parse(jsonText);
-            } catch (err) {
-                showMessage(`AI Error: ${err.message}`, true);
-                console.error("detectItemsFromImage error:", err);
-                return null;
-            }
-        }
-
-        // ----- Rendering -----
-        function renderListView(boxes) {
-            const contentDiv = document.getElementById('content');
-            let userLabel = userId ? (userId.length>8 ? userId.substring(0,8) + '...' : userId) : 'guest';
-            contentDiv.innerHTML = `
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-semibold text-gray-700">My Boxes (${boxes.length})</h2>
-                    <span class="text-sm text-gray-500">User: ${userLabel}</span>
-                </div>
-                <div id="boxes-list" class="space-y-4">
-                    ${boxes.length === 0 ? `<p class="text-center py-12 text-gray-500 card">You haven't packed any boxes yet. Click 'Add Box' to start!</p>` : boxes.map(box => `
-                        <div class="card p-4 flex items-center justify-between hover:shadow-lg transition-shadow cursor-pointer" data-box-id="${box.id}">
-                            <div>
-                                <p class="text-lg font-bold text-emerald-600">${box.boxName || 'Unnamed Box'}</p>
-                                <p class="text-sm text-gray-500 truncate max-w-sm">${box.contents || 'No contents listed.'}</p>
-                                <p class="text-xs text-gray-400 mt-1">Location: ${box.location || 'N/A'} - ${box.timestamp ? new Date(box.timestamp.toMillis()).toLocaleString() : 'N/A'}</p>
-                            </div>
-                            <button class="delete-btn text-red-500 hover:text-red-700 p-2 rounded-full" data-box-id="${box.id}">
-                                Delete
-                            </button>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-            // wire up clicks
-            contentDiv.querySelectorAll('.card[data-box-id]').forEach(card => card.addEventListener('click', () => navigate('edit', card.dataset.boxId)));
-            contentDiv.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); window.deleteBox(btn.dataset.boxId); }));
-            document.getElementById('add-box-btn').classList.remove('hidden');
-        }
-
-        function renderPackView(box = {}) {
-            const contentDiv = document.getElementById('content');
-            const categories = ["Living Room","Kitchen","Bedroom 1","Office","Garage","Storage"];
-            contentDiv.innerHTML = `
-                <div class="flex items-center mb-6">
-                    <button id="back-to-list" class="text-gray-500 hover:text-gray-700 mr-4">Back</button>
-                    <h2 class="text-2xl font-semibold text-gray-700">${box.id ? 'Edit Box':'Pack New Box'}</h2>
-                </div>
-                <div class="card p-6 space-y-6">
-                    <div class="bg-gray-50 p-4 rounded-lg border-2 border-dashed border-gray-300">
-                        <input type="file" id="image-upload" accept="image/*" class="hidden">
-                        <div id="image-preview" class="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center cursor-pointer text-gray-500 text-sm overflow-hidden relative">
-                            ${box.image ? `<img src="data:image/png;base64,${box.image}" class="w-full h-full object-cover">` : `<span id="upload-text">Click to upload image or take photo</span>`}
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2">Optional: Upload an image of the box's contents for AI detection.</p>
-                        <div class="mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                            <input type="text" id="ai-prompt" placeholder="Optional: Prompt (e.g., 'ignore the walls')" class="flex-grow p-2 border border-gray-300 rounded-lg">
-                            <button id="detect-items-btn" class="btn-primary text-white font-semibold py-2 px-4 rounded-lg">Detect Items</button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Box Name</label>
-                        <input type="text" id="box-name" value="${box.boxName||''}" placeholder="e.g., 'Kitchen Utensils'" class="w-full p-3 border border-gray-300 rounded-lg">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Contents (Comma Separated)</label>
-                        <textarea id="contents" rows="4" class="w-full p-3 border border-gray-300 rounded-lg">${box.contents||''}</textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Location / Category</label>
-                        <select id="location" class="w-full p-3 border border-gray-300 rounded-lg">
-                            <option value="">Select a Location</option>
-                            ${categories.map(c => `<option value="${c}" ${box.location===c?'selected':''}>${c}</option>`).join('')}
-                        </select>
-                    </div>
-
-                    <button id="save-box-btn" class="w-full btn-primary text-white font-bold py-3 px-4 rounded-lg shadow-md">Save to Cloud</button>
-                </div>
-            `;
-
-            document.getElementById('back-to-list').addEventListener('click', ()=>navigate('list'));
-            const imageUpload = document.getElementById('image-upload');
-            const imagePreview = document.getElementById('image-preview');
-            const detectBtn = document.getElementById('detect-items-btn');
-            const saveBtn = document.getElementById('save-box-btn');
-            let base64Image = box.image || null;
-
-            imagePreview.addEventListener('click', ()=> imageUpload.click());
-            imageUpload.addEventListener('change', (ev) => {
-                const f = ev.target.files[0];
-                if (!f) return;
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const dataUrl = e.target.result;
-                    base64Image = dataUrl.split(',')[1];
-                    imagePreview.innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`;
-                };
-                reader.readAsDataURL(f);
-            });
-
-            saveBtn.addEventListener('click', async () => {
-                const boxName = (document.getElementById('box-name').value || '').trim();
-                const contents = (document.getElementById('contents').value || '').trim();
-                const location = (document.getElementById('location').value || '').trim();
-                if (!boxName || !contents || !location) { showMessage("Please fill in Box Name, Contents, and Location.", true); return; }
-                saveBtn.textContent = 'Saving...'; saveBtn.disabled = true; saveBtn.classList.remove('btn-primary'); saveBtn.classList.add('bg-gray-400');
-
-                const data = { id: box.id || undefined, boxName, contents, location, image: base64Image || null };
-                const res = await saveBoxToCloud(data);
-                if (res.success) {
-                    showMessage(box.id ? `Box updated` : `Box saved`);
-                    navigate('list');
-                } else {
-                    showMessage(`Save failed: ${res.error}`, true, 5000);
-                    saveBtn.textContent = 'Save to Cloud'; saveBtn.disabled = false; saveBtn.classList.remove('bg-gray-400'); saveBtn.classList.add('btn-primary');
-                }
-            });
-
-            detectBtn.addEventListener('click', async () => {
-                if (!base64Image) { showMessage("Upload an image first to detect items.", true); return; }
-                detectBtn.textContent = 'Thinking...'; detectBtn.disabled = true;
-                const prompt = document.getElementById('ai-prompt').value || '';
-                const result = await detectItemsFromImage(base64Image, prompt);
-                detectBtn.textContent = 'Detect Items'; detectBtn.disabled = false;
-                if (result) {
-                    document.getElementById('box-name').value = result.box_name || '';
-                    document.getElementById('contents').value = result.items || '';
-                    showMessage("AI detection complete — review results.");
-                }
-            });
-        }
-
-        function renderSettingsView() {
-            const contentDiv = document.getElementById('content');
-            const currentKey = localStorage.getItem('gemini_key') || '';
-            contentDiv.innerHTML = `
-                <div class="card p-6 max-w-lg mx-auto">
-                    <h2 class="text-xl font-semibold mb-4">Settings</h2>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
-                    <input id="gemini-key-input" class="w-full p-3 border border-gray-300 rounded-lg font-mono" value="${currentKey}" placeholder="Paste your Gemini API key here">
-                    <p class="text-xs text-gray-500 mt-2">Required for AI detection (optional if you don't use AI).</p>
-                    <div class="mt-6 flex gap-2">
-                        <button id="save-key-btn" class="flex-1 btn-primary text-white py-2 rounded-lg">Save Key</button>
-                        <button id="back-btn" class="flex-1 bg-gray-200 py-2 rounded-lg">Back</button>
-                    </div>
-                </div>
-            `;
-            document.getElementById('save-key-btn').addEventListener('click', () => {
-                const val = document.getElementById('gemini-key-input').value.trim();
-                try { localStorage.setItem('gemini_key', val); showMessage('Gemini key saved'); } catch (e) { showMessage('Could not save key', true); }
-            });
-            document.getElementById('back-btn').addEventListener('click', () => navigate('list'));
-        }
-
-        function renderConnectionFailed(errorCode, message, key) {
-            const contentDiv = document.getElementById('content');
-            contentDiv.innerHTML = `
-                <div class="card p-8 max-w-lg mx-auto mt-24 text-center">
-                    <h2 class="text-2xl font-bold text-red-600 mb-4">Connection Failed</h2>
-                    <p class="text-red-500 mb-2">Firebase Error: (${errorCode})</p>
-                    <p class="text-sm text-gray-700 mb-4">${message}</p>
-                    ${key ? `<p class="text-xs text-gray-500 mt-2">Key Present: ${String(key).substring(0,8)}...</p>` : ''}
-                    <div class="mt-6 text-left">
-                        <p class="font-semibold text-gray-800">Troubleshooting:</p>
-                        <ul class="list-disc list-inside text-sm text-gray-700 space-y-1">
-                            <li>Check your internet connection.</li>
-                            <li>Turn off browser shields / adblock for this page (Brave).</li>
-                            <li>Ensure Firestore rules are published and allow your auth method.</li>
-                        </ul>
-                    </div>
-                    <button id="retry-btn" class="w-full mt-8 bg-gray-800 text-white font-bold py-3 px-4 rounded-lg">Retry</button>
-                </div>
-            `;
-            document.getElementById('retry-btn').addEventListener('click', () => window.location.reload());
-        }
-
-        // Main renderer
-        function render() {
-            if (!isAuthReady) {
-                document.getElementById('content').innerHTML = `<div class="text-center py-20"><p class="text-lg text-emerald-600 font-semibold">Connecting to Cloud...</p><div class="mt-4 animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto"></div></div>`;
-                return;
-            }
-
-            // If list view, ensure subscription
-            if (currentView.view === 'list') {
-                if (!unsubscribeBoxes) {
-                    subscribeToBoxes((boxes) => {
-                        boxListState = boxes;
-                        if (currentView.view === 'list') renderListView(boxListState);
-                    });
-                } else {
-                    renderListView(boxListState);
-                }
-                return;
-            }
-            if (currentView.view === 'pack') { renderPackView({}); return; }
-            if (currentView.view === 'edit') {
-                const b = boxListState.find(x => x.id === currentView.boxId);
-                if (b) renderPackView(b); else { showMessage('Box not found', true); navigate('list'); }
-                return;
-            }
-            if (currentView.view === 'settings') { renderSettingsView(); return; }
-            navigate('list');
-        }
-
-        // Expose deleteBox globally for inline onclick removal used in list HTML
-        window.deleteBox = async (boxId) => {
-            if (!confirm('Delete this box?')) return;
-            try {
-                const boxRef = doc(db, getPrivateCollectionPath('boxes'), boxId);
-                await deleteDoc(boxRef);
-                showMessage('Box deleted');
-            } catch (err) {
-                console.error("deleteBox error:", err);
-                showMessage('Delete failed', true);
-            }
+        const Icon = ({ d, className="" }) => <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+        const Icons = {
+            arrowLeft: "m12 19-7-7 7-7 M19 12H5",
+            camera: "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z M12 13m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
+            settings: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l-.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
+            check: "M20 6 9 17l-5-5",
+            sparkles: "m12 3-1.9 5.8a2 2 0 0 1-1.2 1.2L3 12l5.8 1.9a2 2 0 0 1 1.2 1.2L12 21l1.9-5.8a2 2 0 0 1 1.2-1.2L21 12l-5.8-1.9a2 2 0 0 1-1.2-1.2L12 3z",
+            trash: "M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+            plus: "M12 5v14 M5 12h14",
+            package: "M16.5 9.4 7.5 4.21 M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.3 7l8.7 5 8.7-5 M12 22v-10",
+            search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35",
+            cloud: "M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.1-1.7-1.4-3-3-3 .1 0 .2 0 .3 0-2.1 0-3.9-1.3-4.6-3.2C4.3 9.8 3 11.3 3 13c0 1.7 1.3 3 3 3h11.5z",
+            alert: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
         };
+        const STATUS_STEPS = ['Packing', 'Ready', 'Loaded', 'Unpacked'];
 
-        // global buttons
-        document.getElementById('add-box-btn').addEventListener('click', () => navigate('pack'));
-        document.getElementById('settings-btn').addEventListener('click', () => navigate('settings'));
 
-        // Start
-        initializeFirebase();
+        function App() {
+            const [boxes, setBoxes] = useState([]);
+            const [user, setUser] = useState(null);
+            const [view, setView] = useState('dashboard');
+            const [apiKey, setApiKey] = useState(() => { try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; } });
+            const [dbStatus, setDbStatus] = useState(window.boxsnap.status || 'init'); // init, connecting, connected, error, missing_config
+            const [errorMsg, setErrorMsg] = useState(window.boxsnap.error || '');
 
+            const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
+            const [rawFile, setRawFile] = useState(null);
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [selectedBox, setSelectedBox] = useState(null);
+            const [showSettings, setShowSettings] = useState(false);
+            const [searchQuery, setSearchQuery] = useState('');
+            
+            const fileRef = useRef(null);
+            const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
+            const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
+
+            // --- FIREBASE CONNECTION (Anti-Freeze Logic) ---
+            useEffect(() => {
+                if (window.boxsnap.status === 'missing_config') {
+                    setDbStatus('missing_config');
+                    return;
+                }
+                if (window.boxsnap.status === 'error') {
+                    setDbStatus('error');
+                    setErrorMsg(window.boxsnap.error);
+                    return;
+                }
+
+                setDbStatus('connecting');
+                console.log("App Init: Waiting for Firebase Auth change...");
+
+                // Timeout Safety: If not connected in 5 seconds, show error
+                const timeout = setTimeout(() => {
+                    if (!user && dbStatus === 'connecting') {
+                        setDbStatus('error');
+                        setErrorMsg("Connection timed out (5s). Check network or browser console.");
+                        console.error("Connection Failed: Timeout reached.");
+                    }
+                }, 5000);
+
+                // Listen for Auth and Data
+                const unsubscribeAuth = window.auth.onAuthStateChanged(u => {
+                    if (u) {
+                        setUser(u);
+                        setDbStatus('connected');
+                        console.log(`Firebase Auth: User ID ${u.uid} is now connected.`);
+                        
+                        // Subscribe to data
+                        const q = window.fs.query(window.fs.collection(window.db, `artifacts/${window.appId}/users/${u.uid}/boxes`));
+                        
+                        const unsubscribeData = window.fs.onSnapshot(q, (snapshot) => {
+                            const list = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                            setBoxes(list.sort((a,b) => b.createdAt - a.createdAt));
+                            console.log(`Firestore: Received ${list.length} boxes.`);
+                        }, (err) => {
+                            // This is the CRITICAL permission error point
+                            console.error("Firestore Permission Error:", err);
+                            setErrorMsg("Permission Denied (Code: " + err.code + "). Did you publish the Security Rules?");
+                            setDbStatus('error');
+                        });
+                        return () => unsubscribeData(); // Cleanup data listener
+                    }
+                });
+
+                return () => { 
+                    clearTimeout(timeout); 
+                    if (unsubscribeAuth) unsubscribeAuth();
+                };
+            }, []);
+
+            // --- ACTIONS ---
+            const handleSaveKey = (val) => {
+                const k = val.trim();
+                setApiKey(k);
+                try { localStorage.setItem('gemini_key', k); } catch(e) {}
+            };
+
+            const fileToBase64 = (file) => new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+            });
+
+            const handlePhoto = async (e) => {
+                if(e.target.files[0]) {
+                    const f = e.target.files[0];
+                    setRawFile(f);
+                    const b64 = await fileToBase64(f);
+                    setNewBox(p => ({...p, images: [b64]}));
+                }
+            };
+
+            const analyze = async () => {
+                if (!rawFile || !apiKey) {
+                    if (!apiKey) setShowSettings(true);
+                    // Using a custom modal/alert alternative since native alerts are restricted
+                    return alert("Please add a photo and enter your Gemini API Key in settings.");
+                }
+                setIsAnalyzing(true);
+                try {
+                    const fullDataURI = await fileToBase64(rawFile);
+                    const apiBase64 = fullDataURI.split(',')[1]; 
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: "List items in the image as a JSON object: { \"items\": [\"item1\"] }." }, { inlineData: { mimeType: rawFile.type, data: apiBase64 } }] }] })
+                    });
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error.message);
+                    const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
+                    setNewBox(p => ({...p, items: [...new Set([...p.items, ...json.items])]}));
+                } catch (e) { alert("AI Error: " + e.message); }
+                setIsAnalyzing(false);
+            };
+
+            const saveBox = async () => {
+                if (!user) return alert("Cloud not connected.");
+                if (!newBox.name) return alert("Enter Box Name.");
+                try {
+                    await window.fs.setDoc(window.fs.doc(window.db, `artifacts/${window.appId}/users/${user.uid}/boxes`, `box_${Date.now()}`), { ...newBox, createdAt: Date.now() });
+                    setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
+                    setRawFile(null);
+                    setView('dashboard');
+                } catch (e) { alert("Save Failed: " + e.message); }
+            };
+
+            // NOTE: Using window.confirm() for simple action confirmation.
+            const deleteBox = async (id) => {
+                if(window.confirm("Are you sure you want to delete this box entry?")) await window.fs.deleteDoc(window.fs.doc(window.db, `artifacts/${window.appId}/users/${user.uid}/boxes`, id));
+            };
+
+            const toggleStatus = async (id, current) => {
+                if(!user) return;
+                const idx = STATUS_STEPS.indexOf(current || 'Packing');
+                const next = STATUS_STEPS[(idx + 1) % STATUS_STEPS.length];
+                await window.fs.setDoc(window.fs.doc(window.db, `artifacts/${window.appId}/users/${user.uid}/boxes`, id), { status: next }, { merge: true });
+                if(selectedBox) setSelectedBox({...selectedBox, status: next});
+            };
+
+            // --- VIEWS ---
+
+            if (dbStatus === 'missing_config' || dbStatus === 'error') return (
+                <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-red-50 text-center">
+                    <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
+                        <div className="text-red-500 mb-4 flex justify-center"><Icon d={Icons.alert} className="w-12 h-12" /></div>
+                        <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
+                        <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Your Firebase keys are missing. Please paste them into index.html." : errorMsg}</p>
+                        {dbStatus === 'missing_config' && <div className="bg-slate-100 p-3 rounded text-xs font-mono overflow-x-auto mb-4">const firebaseConfig = &#123; ... &#125;</div>}
+                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Refresh App</button>
+                    </div>
+                </div>
+            );
+
+            // Settings View
+            if (showSettings) return (
+                <div className="p-6 bg-white min-h-screen">
+                    <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
+                        <span onClick={() => setShowSettings(false)}><Icon d={Icons.arrowLeft}/></span> Settings
+                    </div>
+                    <div className="mb-6">
+                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
+                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={e => handleSaveKey(e.target.value)} placeholder="AIza..." />
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key saved." : "Required for AI analysis."}</p>
+                    </div>
+                    <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-200">
+                        <div className="font-bold flex items-center gap-2 mb-1"><Icon d={Icons.cloud} className="w-5 h-5" /> Cloud Status</div>
+                        {user ? <p>✅ Connected</p> : <p>⏳ Connecting...</p>}
+                    </div>
+                    <button onClick={() => setShowSettings(false)} className="w-full mt-8 bg-slate-900 text-white py-3 rounded-xl font-bold">Close</button>
+                </div>
+            );
+
+            // Add Box
+            if (view === 'add') return (
+                <div className="p-6 bg-white min-h-screen animate-in flex flex-col">
+                    <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
+                        <span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box
+                    </div>
+                    <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
+                    <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
+                        {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-50"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
+                        <span className="relative font-bold text-sm mt-1">Add Photo</span>
+                    </div>
+                    <button onClick={analyze} disabled={!rawFile || isAnalyzing || !apiKey} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 disabled:bg-gray-200">
+                        {isAnalyzing ? "Thinking..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Items</>}
+                    </button>
+                    <div className="space-y-4 flex-1">
+                        <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
+                        <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Contents..." value={newBox.items.join(', ')} onChange={e => setNewBox({...newBox, items: e.target.value.split(',')})} />
+                        <select className="w-full p-3 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
+                    </div>
+                    <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2"><Icon d={Icons.check} className="w-5 h-5"/> Save to Cloud</button>
+                </div>
+            );
+
+            // 3. Detail
+            if (selectedBox) return (
+                <div className="p-6 bg-white min-h-screen animate-in">
+                    <div className="flex justify-between items-center mb-4">
+                        <button onClick={() => setSelectedBox(null)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
+                        <button onClick={() => toggleStatus(selectedBox.id, selectedBox.status)} className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[selectedBox.status || 'Packing']}`}>{selectedBox.status || 'Packing'}</button>
+                    </div>
+                    <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4">
+                        {selectedBox.images[0] ? <img src={selectedBox.images[0]} className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center"><Icon d={Icons.package} className="w-12 h-12 text-slate-300" />}</div>}
+                    </div>
+                    <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
+                    <p className="text-slate-500 mb-6">{selectedBox.room}</p>
+                    <div className="bg-slate-50 p-4 rounded-xl border mb-6"><h4 className="font-bold text-xs uppercase text-slate-500 mb-3">Contents</h4><div className="flex flex-wrap gap-2">{selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm">{item}</span>)}</div></div>
+                    <div className="text-center border-t pt-6">
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + "?id=" + selectedBox.id)}`} className="mx-auto border-4 border-black p-2 rounded-lg mb-4" />
+                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
+                    </div>
+                </div>
+            );
+
+            // 4. Dashboard
+            return (
+                <div className="p-5 bg-slate-50 min-h-screen pb-24">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap</h1>
+                        <button onClick={() => setShowSettings(true)} className="p-2 bg-white rounded-full shadow-md"><Icon d={Icons.settings} className="w-6 h-6" /></button>
+                    </div>
+                    {dbStatus === 'connecting' && <div className="bg-yellow-100 text-yellow-800 p-3 rounded-xl text-center mb-4 text-sm font-medium flex items-center justify-center gap-2"><Icon d={Icons.cloud} className="w-4 h-4" />Connecting to Cloud...</div>}
+                    {dbStatus === 'connected' && boxes.length === 0 && <div className="text-center text-slate-500 py-10 bg-white rounded-xl shadow-inner">Inventory empty. Start packing!</div>}
+                    {dbStatus === 'error' && <div className="bg-red-100 text-red-800 p-3 rounded-xl text-center mb-4 text-sm font-medium flex items-center justify-center gap-2"><Icon d={Icons.alert} className="w-4 h-4" />{errorMsg}</div>}
+                    
+                    <div className="space-y-3">
+                        {boxes.filter(b => !searchQuery || JSON.stringify(b).toLowerCase().includes(searchQuery.toLowerCase())).map(box => (
+                            <div key={box.id} onClick={() => setSelectedBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 active:scale-[.98] transition-transform">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex gap-3">
+                                        <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
+                                            {box.images[0] ? <img src={box.images[0]} className="w-full h-full object-cover"/> : <Icon d={Icons.package} className="w-8 h-8 text-slate-400 mx-auto my-2" />}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <h3 className="font-bold text-lg text-slate-900 leading-tight">{box.name || "Unnamed"}</h3>
+                                            <p className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full self-start mt-0.5">{box.room}</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }} className="text-red-300 hover:text-red-500"><Icon d={Icons.trash} className="w-5 h-5"/></button>
+                                </div>
+                                <p className="text-sm text-slate-600 truncate pt-1">{box.items.join(', ')}</p>
+                            </div>
+                        ))}
+                    </div>
+                    <button onClick={() => setView('add')} className="fixed bottom-6 right-6 bg-black text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-gray-800 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>
