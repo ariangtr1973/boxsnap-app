@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -17,8 +17,8 @@
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
         // --- ✅ PASTE YOUR NEW KEY BELOW ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyC-0PvcGzYE0KDHsAHPKA5qc28FxuPl9xM", 
+        window.firebaseConfig = {
+            apiKey: "AIzaSyAsAhVoJdjvgcoajCFQCuRSIviKHl8SdsY", 
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
             projectId: "boxsnap-b5d3d",
             storageBucket: "boxsnap-b5d3d.firebasestorage.app",
@@ -29,22 +29,20 @@
         const APP_ID = "boxsnap-v1";
 
         window.boxsnap = { status: 'initializing', error: null };
-        window.firebaseConfig = firebaseConfig; 
 
+        // 1. Force Clear Old Stored Keys
         try {
             localStorage.removeItem('gemini_key'); 
         } catch(e) {}
 
-        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_NEW_KEY_HERE") {
+        if (window.firebaseConfig.apiKey && window.firebaseConfig.apiKey !== "PASTE_NEW_KEY_HERE") {
             try {
-                const app = initializeApp(firebaseConfig);
+                const app = initializeApp(window.firebaseConfig);
                 const auth = getAuth(app);
                 const db = getFirestore(app);
                 
                 window.db = db;
                 window.auth = auth;
-                // Export signInAnonymously so React can force a login if needed
-                window.signInAnonymously = signInAnonymously;
                 window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc };
                 window.appId = APP_ID;
                 
@@ -53,7 +51,12 @@
                         window.currentUser = user;
                         if(window.initListener) window.initListener(user);
                     } else {
-                        signInAnonymously(auth).catch(e => console.error(e));
+                        signInAnonymously(auth).catch(e => {
+                            console.error("Auth Error", e);
+                            if (e.code === 'auth/api-key-expired') {
+                                alert("CRITICAL: API Key Expired. Generate a new one in Google AI Studio.");
+                            }
+                        });
                     }
                 });
                 window.boxsnap.status = 'ready';
@@ -120,9 +123,7 @@
             const [view, setView] = useState('dashboard');
             
             // --- API KEY LOGIC ---
-            // Safely access the global window.firebaseConfig
             const [apiKey, setApiKey] = useState(() => {
-                // Check if window.firebaseConfig exists before accessing apiKey
                 if (window.firebaseConfig && window.firebaseConfig.apiKey) {
                     return window.firebaseConfig.apiKey;
                 }
@@ -148,7 +149,6 @@
                 if (!window.auth) return;
                 window.initListener = (u) => {
                     setUser(u);
-                    // We only load the "Lightweight" box data (text) here
                     const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
                     window.fs.onSnapshot(q, (snap) => {
                         const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -183,27 +183,19 @@
                 if(e.target.files[0]) {
                     const f = e.target.files[0];
                     setRawFile(f);
-                    // Preview locally immediately
                     const b64 = await compressImage(f);
                     setNewBox(p => ({...p, images: [b64]}));
                 }
             };
 
-            // Open a box and fetch its heavy image data separately
             const openBox = async (box) => {
                 setSelectedBox(box);
-                setSelectedBoxImage(null); // Clear previous
+                setSelectedBoxImage(null);
                 setIsLoadingImage(true);
-                
                 try {
-                    // Fetch the image from the sub-collection
                     const imgDoc = await window.fs.getDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${box.id}/assets/main_image`));
-                    if (imgDoc.exists()) {
-                        setSelectedBoxImage(imgDoc.data().data);
-                    }
-                } catch (e) {
-                    console.error("Image load failed", e);
-                }
+                    if (imgDoc.exists()) setSelectedBoxImage(imgDoc.data().data);
+                } catch (e) {}
                 setIsLoadingImage(false);
             };
 
@@ -213,8 +205,6 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    
-                    // Note: Using the key from state (which comes from config or local storage)
                     const prompt = `Analyze image. List items. Include text/brands. JSON ONLY: { "items": ["Item 1", "Item 2"] }`;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
@@ -225,64 +215,29 @@
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
-                    
-                    setNewBox(p => ({
-                        ...p, 
-                        items: [...new Set([...p.items, ...(json.items || [])])],
-                        name: p.name || json.box_name || "" 
-                    }));
-
+                    setNewBox(p => ({...p, items: [...new Set([...p.items, ...(json.items || [])])], name: p.name || json.box_name || "" }));
                 } catch (e) { alert("AI Error: " + e.message); }
                 setIsAnalyzing(false);
             };
 
             const saveBox = async () => {
+                if (!user || !newBox.name) return alert("Check info.");
                 setIsSaving(true);
                 
-                let activeUser = user;
+                const imageData = newBox.images[0];
+                const boxLite = { ...newBox, images: [], createdAt: Date.now() }; 
+                const boxId = `box_${Date.now()}`;
                 
-                // ⚡️ AUTO-RECONNECT FIX ⚡️
-                if (!activeUser) {
-                    try {
-                        console.log("Attempting auto-reconnect...");
-                        const cred = await window.signInAnonymously(window.auth);
-                        activeUser = cred.user;
-                        setUser(activeUser);
-                        // Re-attach listener
-                        if(window.initListener) window.initListener(activeUser);
-                    } catch (e) {
-                        setIsSaving(false);
-                        // THIS IS THE NEW ERROR MESSAGE
-                        return alert(`Auth Error: ${e.message}. Check 'Identity Toolkit API' in Google Cloud Console.`);
-                    }
-                }
-
-                // Validation
-                if (!newBox.name) { setIsSaving(false); return alert("Please enter a Box Name."); }
-                if (!newBox.items.length && !newBox.images.length) { setIsSaving(false); return alert("Box is empty!"); }
-
                 try {
-                    const imageData = newBox.images[0];
-                    const boxLite = { ...newBox, images: [], createdAt: Date.now() }; 
-                    const boxId = `box_${Date.now()}`;
-                    
-                    // 1. Save Lite Data
-                    await window.fs.setDoc(window.fs.doc(window.db, `users/${activeUser.uid}/boxes`, boxId), boxLite);
-                    
-                    // 2. Save Heavy Image
+                    await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, boxId), boxLite);
                     if (imageData) {
-                        await window.fs.setDoc(window.fs.doc(window.db, `users/${activeUser.uid}/boxes/${boxId}/assets/main_image`), { data: imageData });
+                        await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${boxId}/assets/main_image`), { data: imageData });
                     }
-
                     setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
                     setRawFile(null);
                     setIsSaving(false);
                     setView('dashboard');
-                } catch (e) { 
-                    setIsSaving(false); 
-                    // THIS IS THE OTHER NEW ERROR MESSAGE
-                    alert(`Save Error: ${e.message}. Check 'Cloud Firestore API' in Google Cloud Console.`); 
-                }
+                } catch (e) { setIsSaving(false); alert("Save Failed: " + e.message); }
             };
 
             const deleteBox = async (id) => {
@@ -303,7 +258,6 @@
 
             if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
 
-            // --- VIEW: ADD ---
             if (view === 'add') return (
                 <div className="p-6 bg-white min-h-screen animate-in flex flex-col pb-32">
                     <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
@@ -319,7 +273,6 @@
                     </button>
                     <div className="space-y-4 flex-1">
                         <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                        
                         <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
                             <div className="flex flex-wrap gap-2 mb-2">
                                 {newBox.items.map((item, i) => (
@@ -336,7 +289,6 @@
                 </div>
             );
 
-            // --- VIEW: DETAIL ---
             if (selectedBox) return (
                 <div className="p-6 bg-white min-h-screen animate-in">
                     <div className="flex justify-between items-center mb-4">
@@ -357,7 +309,6 @@
                 </div>
             );
 
-            // --- VIEW: DASHBOARD ---
             return (
                 <div className="p-5 bg-slate-50 min-h-screen pb-32">
                     <div className="flex justify-between items-center mb-6">
