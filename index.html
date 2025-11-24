@@ -16,10 +16,9 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-        // --- ✅ CONFIGURATION ---
-        // Define globally so React can access it
+        // --- ✅ PASTE YOUR NEW KEY BELOW ---
         window.firebaseConfig = {
-            apiKey: "AIzaSyCpyu-CNK3-HQjL2YzxWLzIVDoVN8orYa8", 
+            apiKey: "AIzaSyBNZlXftwdbMGLAeie3bNkmvulg2rbAnpk", 
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
             projectId: "boxsnap-b5d3d",
             storageBucket: "boxsnap-b5d3d.firebasestorage.app",
@@ -36,7 +35,6 @@
             localStorage.removeItem('gemini_key'); 
         } catch(e) {}
 
-        // Check if key is valid before init
         if (window.firebaseConfig.apiKey && window.firebaseConfig.apiKey !== "PASTE_NEW_KEY_HERE") {
             try {
                 const app = initializeApp(window.firebaseConfig);
@@ -55,6 +53,9 @@
                     } else {
                         signInAnonymously(auth).catch(e => {
                             console.error("Auth Error", e);
+                            if (e.code === 'auth/api-key-expired') {
+                                alert("CRITICAL: API Key Expired. Generate a new one in Google AI Studio.");
+                            }
                         });
                     }
                 });
@@ -64,7 +65,6 @@
             }
         } else {
             window.boxsnap.status = 'missing_config';
-            console.warn("Firebase API Key not set. Update index.html line 20.");
         }
     </script>
 
@@ -146,7 +146,6 @@
                 if (!window.auth) return;
                 window.initListener = (u) => {
                     setUser(u);
-                    // We only load the "Lightweight" box data (text) here
                     const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
                     window.fs.onSnapshot(q, (snap) => {
                         const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -205,7 +204,6 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    
                     const prompt = `Analyze image. List items. Include text/brands. JSON ONLY: { "items": ["Item 1", "Item 2"] }`;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
