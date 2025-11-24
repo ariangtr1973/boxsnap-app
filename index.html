@@ -16,9 +16,10 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-        // --- ✅ PASTE YOUR NEW KEY BELOW ---
+        // --- ✅ CONFIGURATION ---
+        // Define globally so React can access it
         window.firebaseConfig = {
-            apiKey: "AIzaSyAsAhVoJdjvgcoajCFQCuRSIviKHl8SdsY", 
+            apiKey: "AIzaSyCpyu-CNK3-HQjL2YzxWLzIVDoVN8orYa8", 
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
             projectId: "boxsnap-b5d3d",
             storageBucket: "boxsnap-b5d3d.firebasestorage.app",
@@ -35,6 +36,7 @@
             localStorage.removeItem('gemini_key'); 
         } catch(e) {}
 
+        // Check if key is valid before init
         if (window.firebaseConfig.apiKey && window.firebaseConfig.apiKey !== "PASTE_NEW_KEY_HERE") {
             try {
                 const app = initializeApp(window.firebaseConfig);
@@ -53,9 +55,6 @@
                     } else {
                         signInAnonymously(auth).catch(e => {
                             console.error("Auth Error", e);
-                            if (e.code === 'auth/api-key-expired') {
-                                alert("CRITICAL: API Key Expired. Generate a new one in Google AI Studio.");
-                            }
                         });
                     }
                 });
@@ -65,6 +64,7 @@
             }
         } else {
             window.boxsnap.status = 'missing_config';
+            console.warn("Firebase API Key not set. Update index.html line 20.");
         }
     </script>
 
@@ -124,10 +124,7 @@
             
             // --- API KEY LOGIC ---
             const [apiKey, setApiKey] = useState(() => {
-                if (window.firebaseConfig && window.firebaseConfig.apiKey) {
-                    return window.firebaseConfig.apiKey;
-                }
-                return localStorage.getItem('gemini_key') || "";
+                return window.firebaseConfig.apiKey || "";
             });
             
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
@@ -149,6 +146,7 @@
                 if (!window.auth) return;
                 window.initListener = (u) => {
                     setUser(u);
+                    // We only load the "Lightweight" box data (text) here
                     const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
                     window.fs.onSnapshot(q, (snap) => {
                         const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -183,14 +181,16 @@
                 if(e.target.files[0]) {
                     const f = e.target.files[0];
                     setRawFile(f);
+                    // Preview locally immediately
                     const b64 = await compressImage(f);
                     setNewBox(p => ({...p, images: [b64]}));
                 }
             };
 
+            // Open a box and fetch its heavy image data separately
             const openBox = async (box) => {
                 setSelectedBox(box);
-                setSelectedBoxImage(null);
+                setSelectedBoxImage(null); // Clear previous
                 setIsLoadingImage(true);
                 try {
                     const imgDoc = await window.fs.getDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${box.id}/assets/main_image`));
@@ -205,6 +205,7 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
+                    
                     const prompt = `Analyze image. List items. Include text/brands. JSON ONLY: { "items": ["Item 1", "Item 2"] }`;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
@@ -229,10 +230,14 @@
                 const boxId = `box_${Date.now()}`;
                 
                 try {
+                    // 1. Save Lite Data
                     await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, boxId), boxLite);
+                    
+                    // 2. Save Heavy Image
                     if (imageData) {
                         await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${boxId}/assets/main_image`), { data: imageData });
                     }
+
                     setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
                     setRawFile(null);
                     setIsSaving(false);
@@ -258,6 +263,7 @@
 
             if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
 
+            // --- VIEW: ADD ---
             if (view === 'add') return (
                 <div className="p-6 bg-white min-h-screen animate-in flex flex-col pb-32">
                     <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
@@ -273,6 +279,7 @@
                     </button>
                     <div className="space-y-4 flex-1">
                         <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
+                        
                         <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
                             <div className="flex flex-wrap gap-2 mb-2">
                                 {newBox.items.map((item, i) => (
@@ -289,6 +296,7 @@
                 </div>
             );
 
+            // --- VIEW: DETAIL ---
             if (selectedBox) return (
                 <div className="p-6 bg-white min-h-screen animate-in">
                     <div className="flex justify-between items-center mb-4">
@@ -309,6 +317,7 @@
                 </div>
             );
 
+            // --- VIEW: DASHBOARD ---
             return (
                 <div className="p-5 bg-slate-50 min-h-screen pb-32">
                     <div className="flex justify-between items-center mb-6">
