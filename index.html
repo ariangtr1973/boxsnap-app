@@ -27,7 +27,7 @@
         // ---------------------------------
 
         const APP_ID = "boxsnap-v1";
-        window.boxsnap = { status: 'initializing', error: null, debugInfo: '' };
+        window.boxsnap = { status: 'initializing', error: null, debugInfo: '', defaultKey: firebaseConfig.apiKey };
 
         // --- CLEANUP & INITIALIZE ---
         const initApp = async () => {
@@ -38,14 +38,7 @@
                     console.log("Cleaned up stale Firebase apps.");
                 }
 
-                // 2. Validation
-                const keys = Object.keys(firebaseConfig);
-                const missing = ['apiKey', 'authDomain', 'projectId'].filter(k => !firebaseConfig[k]);
-                window.boxsnap.debugInfo = missing.length > 0 ? `Missing: ${missing.join(', ')}` : `Config OK (${keys.length} keys)`;
-
-                if (missing.length > 0) throw new Error(`Config missing: ${missing.join(', ')}`);
-
-                // 3. Initialize
+                // 2. Initialize
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
                 const db = getFirestore(app);
@@ -55,7 +48,7 @@
                 window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
                 window.appId = APP_ID;
                 
-                // 4. Auth
+                // 3. Auth
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         console.log("Auth Success:", user.uid);
@@ -112,7 +105,16 @@
             const [boxes, setBoxes] = useState([]);
             const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
-            const [apiKey, setApiKey] = useState(() => { try { return localStorage.getItem('gemini_key') || ''; } catch { return ''; } });
+            
+            // --- ⚡️ FIX: Initialize API Key from global default if local is empty ---
+            const [apiKey, setApiKey] = useState(() => { 
+                try { 
+                    return localStorage.getItem('gemini_key') || window.boxsnap.defaultKey || ''; 
+                } catch { 
+                    return window.boxsnap.defaultKey || ''; 
+                } 
+            });
+
             const [dbStatus, setDbStatus] = useState(window.boxsnap.status || 'init');
             const [errorMsg, setErrorMsg] = useState(window.boxsnap.error || '');
             const [debugInfo, setDebugInfo] = useState(window.boxsnap.debugInfo || '');
@@ -137,7 +139,6 @@
                 setDbStatus('connecting');
                 setDebugInfo(window.boxsnap.debugInfo);
 
-                // Connection Doctor
                 const timeout = setTimeout(() => {
                     if (!user && dbStatus === 'connecting') {
                         setDbStatus('error');
@@ -146,7 +147,6 @@
                 }, 8000);
 
                 const checkAuth = setInterval(() => {
-                    // 1. Check global error
                     if (window.boxsnap.status === 'error') {
                         clearInterval(checkAuth);
                         setDbStatus('error');
@@ -154,7 +154,6 @@
                         return;
                     }
 
-                    // 2. Check Auth Success
                     if (window.auth && window.fs) {
                         clearInterval(checkAuth);
                         window.auth.onAuthStateChanged(u => {
@@ -176,12 +175,6 @@
                 }, 500);
                 return () => { clearInterval(checkAuth); clearTimeout(timeout); };
             }, [user]);
-
-            // --- DATA RESET ---
-            const resetData = () => {
-                localStorage.clear();
-                window.location.reload();
-            };
 
             // --- ACTIONS ---
             const handleSaveKey = (val) => {
@@ -207,7 +200,8 @@
 
             const analyze = async () => {
                 if (!rawFile) return customAlert("Please add a photo first.");
-                const activeKey = apiKey || "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE";
+                // Use state key
+                const activeKey = apiKey;
                 
                 setIsAnalyzing(true);
                 try {
@@ -253,11 +247,11 @@
                 <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-red-50 text-center">
                     <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
                         <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
-                        <p className="text-slate-600 text-sm mb-4 break-words bg-red-50 p-2 rounded">{errorMsg}</p>
+                        <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Check code." : errorMsg}</p>
                         <div className="text-xs font-mono text-gray-400 mb-4">Debug: {debugInfo}</div>
                         <div className="flex gap-2">
                             <button onClick={() => window.location.reload()} className="flex-1 bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry</button>
-                            <button onClick={resetData} className="flex-1 bg-red-200 text-red-800 py-3 rounded-xl text-sm font-bold">Reset App Data</button>
+                            <button onClick={() => {localStorage.clear(); window.location.reload();}} className="flex-1 bg-red-200 text-red-800 py-3 rounded-xl text-sm font-bold">Reset Data</button>
                         </div>
                     </div>
                 </div>
@@ -271,7 +265,7 @@
                     <div className="mb-6">
                         <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
                         <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={e => handleSaveKey(e.target.value)} placeholder="AIza..." />
-                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key saved." : "Required for AI."}</p>
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key loaded automatically." : "Required for AI."}</p>
                     </div>
                     <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-200 mb-6">
                         <div className="font-bold flex items-center gap-2 mb-1"><Icon d={Icons.cloud} className="w-5 h-5" /> Cloud Status</div>
