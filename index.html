@@ -8,7 +8,6 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- QR Scanner Library -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     
     <!-- FIREBASE SDK -->
@@ -17,7 +16,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-        // --- ✅ YOUR KEYS (Hardcoded) ---
+        // --- ✅ YOUR KEYS ---
         const firebaseConfig = {
             apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
@@ -42,7 +41,6 @@
             
             onAuthStateChanged(auth, (user) => {
                 if (user) {
-                    console.log("Auth Success:", user.uid);
                     window.currentUser = user;
                     if(window.initListener) window.initListener(user);
                 } else {
@@ -58,7 +56,6 @@
     <style>
         body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        /* Hide scrollbar for horizontal lists */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -84,19 +81,12 @@
             scan: "M3 7V5a2 2 0 0 1 2-2h2 M17 3h2a2 2 0 0 1 2 2v2 M21 17v2a2 2 0 0 1-2 2h-2 M7 21H5a2 2 0 0 1-2-2v-2 M12 12h.01"
         };
 
-        // --- SCANNER COMPONENT ---
         const QRScanner = ({ onScan, onClose }) => {
             useEffect(() => {
                 const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-                scanner.render((decodedText) => {
-                    scanner.clear();
-                    onScan(decodedText);
-                }, (error) => {
-                    // console.warn(error); // Ignore scan errors
-                });
+                scanner.render((txt) => { scanner.clear(); onScan(txt); }, console.warn);
                 return () => { try { scanner.clear(); } catch(e){} };
             }, []);
-
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center p-4">
                     <div className="bg-white p-4 rounded-xl w-full max-w-sm">
@@ -113,7 +103,6 @@
             const [user, setUser] = useState(window.currentUser || null);
             const [view, setView] = useState('dashboard');
             const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE");
-            
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
             const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -126,29 +115,22 @@
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
             const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
-            // --- FIREBASE SYNC ---
             useEffect(() => {
                 if (!window.auth) return;
                 window.initListener = (u) => {
                     setUser(u);
-                    // Using the simple path that worked last time
                     const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
-                    window.fs.onSnapshot(q, (snapshot) => {
-                        const list = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-                        setBoxes(list.sort((a,b) => b.createdAt - a.createdAt));
+                    window.fs.onSnapshot(q, (snap) => {
+                        setBoxes(snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.createdAt - a.createdAt));
                     });
                 };
                 if (window.currentUser) window.initListener(window.currentUser);
             }, []);
 
-            // --- HELPERS ---
-            const fileToBase64 = (file) => new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
+            const fileToBase64 = (file) => new Promise((res) => {
+                const r = new FileReader(); r.readAsDataURL(file); r.onload = () => res(r.result);
             });
 
-            // --- ACTIONS ---
             const handlePhoto = async (e) => {
                 if(e.target.files[0]) {
                     const f = e.target.files[0];
@@ -163,9 +145,18 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = (await fileToBase64(rawFile)).split(',')[1];
+                    
+                    // --- ⚡️ NEW: HIGH DETAIL PROMPT ---
+                    const prompt = `
+                        Analyze this image of packed items. 
+                        List every distinct item found. 
+                        IMPORTANT: If text is visible on packaging (brands, dimensions like '1/4 inch', '500 count'), INCLUDE IT in the item name.
+                        Return ONLY a JSON object: { "items": ["Item 1 - details", "Item 2"] }
+                    `;
+
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ contents: [{ parts: [{ text: "List items in image as JSON: { \"items\": [\"item1\"] }." }, { inlineData: { mimeType: rawFile.type, data: b64 } }] }] })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: rawFile.type, data: b64 } }] }] })
                     });
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
@@ -179,51 +170,30 @@
                 if (!user || !newBox.name) return alert("Check info.");
                 setIsSaving(true);
                 try {
-                    await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, `box_${Date.now()}`), { 
-                        ...newBox, 
-                        createdAt: Date.now() 
-                    });
+                    await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, `box_${Date.now()}`), { ...newBox, createdAt: Date.now() });
                     setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
                     setRawFile(null);
                     setIsSaving(false);
                     setView('dashboard');
-                } catch (e) { 
-                    setIsSaving(false);
-                    alert("Save Failed: " + e.message);
-                }
+                } catch (e) { setIsSaving(false); alert("Save Failed: " + e.message); }
             };
 
             const deleteBox = async (id) => {
-                if(confirm("Delete?")) {
-                    await window.fs.deleteDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, id));
-                }
+                if(confirm("Delete?")) await window.fs.deleteDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, id));
             };
 
-            const handleScan = (decodedText) => {
+            const handleScan = (txt) => {
                 setShowScanner(false);
-                // Look for ?id= or just the ID
-                let boxId = decodedText;
-                if (decodedText.includes('?id=')) {
-                    boxId = decodedText.split('?id=')[1];
-                }
-                
+                const boxId = txt.includes('?id=') ? txt.split('?id=')[1] : txt;
                 const found = boxes.find(b => b.id === boxId);
-                if (found) {
-                    setSelectedBox(found);
-                } else {
-                    alert("Box not found in your inventory.");
-                }
+                found ? setSelectedBox(found) : alert("Box not found.");
             };
 
-            // --- FILTER LOGIC ---
             const filteredBoxes = boxes.filter(b => {
                 const q = searchQuery.toLowerCase();
-                return !q || 
-                    b.name.toLowerCase().includes(q) || 
-                    b.items.some(i => i.toLowerCase().includes(q));
+                return !q || b.name.toLowerCase().includes(q) || b.items.some(i => i.toLowerCase().includes(q));
             });
 
-            // --- RENDER ---
             if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
 
             if (view === 'add') return (
@@ -232,19 +202,16 @@
                         <span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box
                     </div>
                     <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
-                    
                     <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
                         {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-50"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
                         <span className="relative font-bold text-sm mt-1">Add Photo</span>
                     </div>
-
                     <button onClick={analyze} disabled={!rawFile || isAnalyzing} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 disabled:bg-gray-200 disabled:text-gray-500">
-                        {isAnalyzing ? "Thinking..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Items</>}
+                        {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details</>}
                     </button>
-
                     <div className="space-y-4 flex-1">
                         <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                        {/* Smart Chips Input */}
+                        
                         <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
                             <div className="flex flex-wrap gap-2 mb-2">
                                 {newBox.items.map((item, i) => (
@@ -253,22 +220,13 @@
                                     </span>
                                 ))}
                             </div>
-                            <input 
-                                className="w-full bg-transparent text-sm outline-none" 
-                                placeholder="Type item & hit Enter..." 
-                                onKeyDown={e => {
-                                    if(e.key === 'Enter' && e.target.value) {
-                                        setNewBox(p => ({...p, items: [...p.items, e.target.value]}));
-                                        e.target.value = '';
-                                    }
-                                }}
-                            />
+                            <input className="w-full bg-transparent text-sm outline-none" placeholder="Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, e.target.value]})); e.target.value = ''; }}} />
                         </div>
+
                         <select className="w-full p-3 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
                     </div>
-                    
                     <button onClick={saveBox} disabled={isSaving} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2 disabled:bg-green-800">
-                        {isSaving ? "Saving..." : <><Icon d={Icons.check} className="w-5 h-5"/> Save to Cloud</>}
+                        {isSaving ? "Saving..." : <><Icon d={Icons.check} className="w-5 h-5"/> Save</>}
                     </button>
                 </div>
             );
@@ -310,9 +268,6 @@
 
                     <div className="space-y-3">
                         {filteredBoxes.map(box => {
-                            // Check which items match search for highlighting
-                            const matches = searchQuery ? box.items.filter(i => i.toLowerCase().includes(searchQuery.toLowerCase())) : [];
-                            
                             return (
                                 <div key={box.id} onClick={() => setSelectedBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500">
                                     <div className="flex justify-between items-start">
@@ -320,7 +275,6 @@
                                         <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
                                     </div>
                                     
-                                    {/* Smart Chips Display */}
                                     <div className="flex flex-wrap gap-1 mt-1">
                                         {box.items.slice(0, 5).map((item, i) => {
                                             const isMatch = searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase());
