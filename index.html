@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -116,6 +116,8 @@
             const [boxes, setBoxes] = useState([]);
             const [user, setUser] = useState(window.currentUser || null);
             const [view, setView] = useState('dashboard');
+            
+            // --- KEY LOGIC ---
             const [apiKey, setApiKey] = useState(() => window.firebaseConfig.apiKey);
             
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
@@ -166,6 +168,7 @@
                 };
             });
 
+            // --- ACTIONS ---
             const handlePhoto = async (e) => {
                 if(e.target.files[0]) {
                     const f = e.target.files[0];
@@ -191,12 +194,7 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    
-                    const prompt = `
-                        Analyze image. List items. 
-                        IMPORTANT: Also suggest a short 'box_name' based on content (e.g. 'Garage Tools'). 
-                        JSON ONLY: { "items": ["Item 1"], "box_name": "Suggested Name" }
-                    `;
+                    const prompt = `Analyze image. List items. Include text/brands. JSON ONLY: { "items": ["Item 1", "Item 2"] }`;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -218,12 +216,13 @@
             };
 
             const saveBox = async () => {
-                // --- BETTER VALIDATION MESSAGES ---
-                if (!user) return alert("Cloud Error: Not logged in. Refresh page.");
-                if (!newBox.name) return alert("Missing Info: Please enter a Box Name.");
-                if (!newBox.items.length && !newBox.images.length) return alert("Empty Box: Add items or a photo.");
+                // --- EXPLICIT ERROR MESSAGES ---
+                if (!user) return alert("Error: You are not logged in to the cloud.");
+                if (!newBox.name) return alert("Error: Please enter a 'Box Name'.");
+                if (!newBox.items.length && !newBox.images.length) return alert("Error: Box is empty! Add items or a photo.");
                 
                 setIsSaving(true);
+                
                 const imageData = newBox.images[0];
                 const boxLite = { ...newBox, images: [], createdAt: Date.now() }; 
                 const boxId = `box_${Date.now()}`;
