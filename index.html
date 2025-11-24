@@ -136,11 +136,12 @@
             const fileRef = useRef(null);
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
 
-            // --- FIREBASE SYNC ---
+            // --- FIREBASE SYNC (LIST ONLY) ---
             useEffect(() => {
                 if (!window.auth) return;
                 window.initListener = (u) => {
                     setUser(u);
+                    // We only load the "Lightweight" box data (text) here
                     const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
                     window.fs.onSnapshot(q, (snap) => {
                         const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -175,19 +176,27 @@
                 if(e.target.files[0]) {
                     const f = e.target.files[0];
                     setRawFile(f);
+                    // Preview locally immediately
                     const b64 = await compressImage(f);
                     setNewBox(p => ({...p, images: [b64]}));
                 }
             };
 
+            // Open a box and fetch its heavy image data separately
             const openBox = async (box) => {
                 setSelectedBox(box);
-                setSelectedBoxImage(null);
+                setSelectedBoxImage(null); // Clear previous
                 setIsLoadingImage(true);
+                
                 try {
+                    // Fetch the image from the sub-collection
                     const imgDoc = await window.fs.getDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${box.id}/assets/main_image`));
-                    if (imgDoc.exists()) setSelectedBoxImage(imgDoc.data().data);
-                } catch (e) {}
+                    if (imgDoc.exists()) {
+                        setSelectedBoxImage(imgDoc.data().data);
+                    }
+                } catch (e) {
+                    console.error("Image load failed", e);
+                }
                 setIsLoadingImage(false);
             };
 
@@ -197,6 +206,8 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
+                    
+                    // Note: Using the key from state (which comes from config or local storage)
                     const prompt = `Analyze image. List items. Include text/brands. JSON ONLY: { "items": ["Item 1", "Item 2"] }`;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
@@ -340,13 +351,7 @@
                 <div className="p-5 bg-slate-50 min-h-screen pb-32">
                     <div className="flex justify-between items-center mb-6">
                         <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap</h1>
-                        
-                        <div className="flex gap-2 items-center">
-                            <button onClick={() => setShowScanner(true)} className="p-3 bg-slate-900 text-white rounded-full shadow-lg flex items-center gap-2 text-xs font-bold"><Icon d={Icons.scan} className="w-4 h-4" /> Scan</button>
-                            
-                            {/* CONNECTIVITY DOT */}
-                            <div className={`w-3 h-3 rounded-full ${user ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} title={user ? "Online" : "Offline"}></div>
-                        </div>
+                        <button onClick={() => setShowScanner(true)} className="p-3 bg-slate-900 text-white rounded-full shadow-lg flex items-center gap-2 text-xs font-bold"><Icon d={Icons.scan} className="w-4 h-4" /> Scan</button>
                     </div>
 
                     <div className="relative mb-4">
