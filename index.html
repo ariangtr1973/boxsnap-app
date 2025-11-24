@@ -283,7 +283,7 @@
                         <span className="relative font-bold text-sm mt-1">Add Photo</span>
                     </div>
                     
-                    <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
+                    <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
                         {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
                     </button>
                     
