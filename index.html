@@ -18,7 +18,7 @@
 
         // --- ✅ PASTE YOUR NEW KEY BELOW ---
         window.firebaseConfig = {
-            apiKey: "AIzaSyBNZlXftwdbMGLAeie3bNkmvulg2rbAnpk", 
+            apiKey: "AIzaSyAsAhVoJdjvgcoajCFQCuRSIviKHl8SdsY", 
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
             projectId: "boxsnap-b5d3d",
             storageBucket: "boxsnap-b5d3d.firebasestorage.app",
@@ -30,10 +30,8 @@
 
         window.boxsnap = { status: 'initializing', error: null };
 
-        // 1. Force Clear Old Stored Keys
-        try {
-            localStorage.removeItem('gemini_key'); 
-        } catch(e) {}
+        // Force Clear Old Stored Keys
+        try { localStorage.removeItem('gemini_key'); } catch(e) {}
 
         if (window.firebaseConfig.apiKey && window.firebaseConfig.apiKey !== "PASTE_NEW_KEY_HERE") {
             try {
@@ -43,6 +41,9 @@
                 
                 window.db = db;
                 window.auth = auth;
+                // EXPORT SIGN IN FOR AUTO-RECONNECT
+                window.signInAnonymously = signInAnonymously;
+                
                 window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc };
                 window.appId = APP_ID;
                 
@@ -51,12 +52,7 @@
                         window.currentUser = user;
                         if(window.initListener) window.initListener(user);
                     } else {
-                        signInAnonymously(auth).catch(e => {
-                            console.error("Auth Error", e);
-                            if (e.code === 'auth/api-key-expired') {
-                                alert("CRITICAL: API Key Expired. Generate a new one in Google AI Studio.");
-                            }
-                        });
+                        signInAnonymously(auth).catch(e => console.error(e));
                     }
                 });
                 window.boxsnap.status = 'ready';
@@ -124,7 +120,10 @@
             
             // --- API KEY LOGIC ---
             const [apiKey, setApiKey] = useState(() => {
-                return window.firebaseConfig.apiKey || "";
+                if (window.firebaseConfig && window.firebaseConfig.apiKey) {
+                    return window.firebaseConfig.apiKey;
+                }
+                return localStorage.getItem('gemini_key') || "";
             });
             
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
@@ -180,16 +179,14 @@
                 if(e.target.files[0]) {
                     const f = e.target.files[0];
                     setRawFile(f);
-                    // Preview locally immediately
                     const b64 = await compressImage(f);
                     setNewBox(p => ({...p, images: [b64]}));
                 }
             };
 
-            // Open a box and fetch its heavy image data separately
             const openBox = async (box) => {
                 setSelectedBox(box);
-                setSelectedBoxImage(null); // Clear previous
+                setSelectedBoxImage(null);
                 setIsLoadingImage(true);
                 try {
                     const imgDoc = await window.fs.getDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${box.id}/assets/main_image`));
@@ -214,33 +211,61 @@
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
-                    setNewBox(p => ({...p, items: [...new Set([...p.items, ...(json.items || [])])], name: p.name || json.box_name || "" }));
+                    
+                    setNewBox(p => ({
+                        ...p, 
+                        items: [...new Set([...p.items, ...(json.items || [])])],
+                        name: p.name || json.box_name || "" 
+                    }));
+
                 } catch (e) { alert("AI Error: " + e.message); }
                 setIsAnalyzing(false);
             };
 
             const saveBox = async () => {
-                if (!user || !newBox.name) return alert("Check info.");
                 setIsSaving(true);
                 
-                const imageData = newBox.images[0];
-                const boxLite = { ...newBox, images: [], createdAt: Date.now() }; 
-                const boxId = `box_${Date.now()}`;
+                let activeUser = user;
                 
+                // ⚡️ AUTO-RECONNECT FIX ⚡️
+                // If user is null, try to sign in again immediately
+                if (!activeUser) {
+                    try {
+                        console.log("Attempting auto-reconnect...");
+                        const cred = await window.signInAnonymously(window.auth);
+                        activeUser = cred.user;
+                        setUser(activeUser); // Update React state
+                    } catch (e) {
+                        setIsSaving(false);
+                        return alert("Network Error: Could not connect to cloud. Check internet.");
+                    }
+                }
+
+                // Validation
+                if (!newBox.name) { setIsSaving(false); return alert("Please enter a Box Name."); }
+                if (!newBox.items.length && !newBox.images.length) { setIsSaving(false); return alert("Box is empty!"); }
+
                 try {
+                    const imageData = newBox.images[0];
+                    const boxLite = { ...newBox, images: [], createdAt: Date.now() }; 
+                    const boxId = `box_${Date.now()}`;
+                    
                     // 1. Save Lite Data
-                    await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, boxId), boxLite);
+                    await window.fs.setDoc(window.fs.doc(window.db, `users/${activeUser.uid}/boxes`, boxId), boxLite);
                     
                     // 2. Save Heavy Image
                     if (imageData) {
-                        await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${boxId}/assets/main_image`), { data: imageData });
+                        await window.fs.setDoc(window.fs.doc(window.db, `users/${activeUser.uid}/boxes/${boxId}/assets/main_image`), { data: imageData });
                     }
 
                     setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
                     setRawFile(null);
                     setIsSaving(false);
                     setView('dashboard');
-                } catch (e) { setIsSaving(false); alert("Save Failed: " + e.message); }
+                } catch (e) { 
+                    setIsSaving(false); 
+                    alert("Save Failed: " + e.message); 
+                }
             };
 
             const deleteBox = async (id) => {
