@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap AI Local</title>
+    <title>BoxSnap Local</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -14,8 +14,10 @@
     <style>
         body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        /* Hide scrollbar for cleaner UI */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
     </style>
 </head>
 <body>
@@ -24,6 +26,7 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        // --- ICONS ---
         const Icon = ({ d, className="" }) => <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
         const Icons = {
             arrowLeft: "m12 19-7-7 7-7 M19 12H5",
@@ -36,12 +39,12 @@
             package: "M16.5 9.4 7.5 4.21 M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.3 7l8.7 5 8.7-5 M12 22v-10",
             search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35",
             scan: "M3 7V5a2 2 0 0 1 2-2h2 M17 3h2a2 2 0 0 1 2 2v2 M21 17v2a2 2 0 0 1-2 2h-2 M7 21H5a2 2 0 0 1-2-2v-2 M12 12h.01",
-            image: "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M11 14l2 2.4L16 13l3 4H5l4-4 2 1z",
             download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
             upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12",
             share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13"
         };
 
+        // --- SCANNER COMPONENT ---
         const QRScanner = ({ onScan, onClose }) => {
             useEffect(() => {
                 if (window.Html5QrcodeScanner) {
@@ -49,14 +52,14 @@
                     scanner.render((txt) => { scanner.clear(); onScan(txt); }, console.warn);
                     return () => { try { scanner.clear(); } catch(e){} };
                 } else {
-                    alert("Scanner library failed to load. Check internet.");
+                    alert("Scanner error. Refresh page.");
                 }
             }, []);
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center p-4">
                     <div className="bg-white p-4 rounded-xl w-full max-w-sm">
-                        <h2 className="text-lg font-bold mb-2 text-center">Scan Box Label</h2>
-                        <div id="reader" className="w-full h-64 bg-gray-100"></div>
+                        <h2 className="text-lg font-bold mb-2 text-center">Scan QR Label</h2>
+                        <div id="reader" className="w-full h-64 bg-gray-100 rounded-lg overflow-hidden"></div>
                         <button onClick={onClose} className="w-full mt-4 py-3 bg-red-100 text-red-600 rounded-lg font-bold">Cancel</button>
                     </div>
                 </div>
@@ -64,79 +67,64 @@
         };
 
         function App() {
-            // Use localStorage for persistence instead of Firebase
+            // --- LOCAL STORAGE INIT ---
             const [boxes, setBoxes] = useState(() => {
                 try {
-                    const saved = localStorage.getItem('boxsnap_local_data');
-                    return saved ? JSON.parse(saved) : [];
+                    return JSON.parse(localStorage.getItem('boxsnap_data') || '[]');
                 } catch { return []; }
             });
             
-            const [view, setView] = useState('dashboard');
+            const [view, setView] = useState('dashboard'); // dashboard, add, detail, settings
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
+            
             const [selectedBox, setSelectedBox] = useState(null);
-            const [selectedBoxImage, setSelectedBoxImage] = useState(null);
             const [isAnalyzing, setIsAnalyzing] = useState(false);
             const [showScanner, setShowScanner] = useState(false);
             const [searchQuery, setSearchQuery] = useState('');
-            const [showSettings, setShowSettings] = useState(false);
-
-            // --- API Key State (Managed locally) ---
-            const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
             
+            // --- API KEY LOGIC ---
+            const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
+
             const fileRef = useRef(null);
             const qrRef = useRef(null);
             const importRef = useRef(null);
-            const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
+            const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit', 'Attic', 'Office'];
             const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
-            // --- LOCAL STORAGE EFFECT ---
+            // --- PERSISTENCE ---
             useEffect(() => {
-                localStorage.setItem('boxsnap_local_data', JSON.stringify(boxes));
+                try { localStorage.setItem('boxsnap_data', JSON.stringify(boxes)); } catch(e) { alert("Phone storage full! Delete old boxes."); }
             }, [boxes]);
 
-            // --- Save Key ---
-            const handleSaveKey = (e) => {
-                const val = e.target.value.trim();
-                setApiKey(val);
-                localStorage.setItem('gemini_key', val);
-            }
-
-            // --- EXPORT WITH "SAVE AS" ---
+            // --- BACKUP / RESTORE ---
             const exportData = async () => {
                 const fileName = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
                 const json = JSON.stringify(boxes, null, 2);
 
+                // Try Native "Save As" / Share first (Mobile friendly)
                 try {
-                    // 1. Try "Save As" File Picker (Chrome/Edge/Android)
-                    if (window.showSaveFilePicker) {
-                        const handle = await window.showSaveFilePicker({
-                            suggestedName: fileName,
-                            types: [{
-                                description: 'JSON File',
-                                accept: { 'application/json': ['.json'] },
-                            }],
+                    const file = new File([json], fileName, { type: "application/json" });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: 'BoxSnap Backup',
+                            text: 'Save this file to keep your inventory safe.'
                         });
-                        const writable = await handle.createWritable();
-                        await writable.write(json);
-                        await writable.close();
-                        alert("Saved successfully!");
                         return;
                     }
-                } catch (err) { console.log("File Picker cancelled/failed", err); }
+                } catch (e) { console.log("Share skipped:", e); }
 
-                // 2. Fallback to Download/Share
-                const file = new File([json], fileName, { type: "application/json" });
-                const url = URL.createObjectURL(file);
+                // Fallback to Download
+                const blob = new Blob([json], {type: "application/json"});
+                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = fileName;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                alert("File saved to Downloads. Move it to your preferred folder using your File Manager.");
+                alert("Backup saved to Downloads folder.");
             };
 
             const importData = (e) => {
@@ -147,12 +135,11 @@
                     try {
                         const imported = JSON.parse(ev.target.result);
                         if (Array.isArray(imported)) {
-                            setBoxes(imported);
-                            alert("Success! " + imported.length + " boxes loaded.");
-                            setShowSettings(false);
-                        } else {
-                            alert("Invalid file.");
-                        }
+                            if(confirm(`Replace current list with ${imported.length} boxes from backup?`)) {
+                                setBoxes(imported);
+                                alert("Restored successfully!");
+                            }
+                        } else { alert("Invalid file format."); }
                     } catch(err) { alert("Error reading file."); }
                 };
                 reader.readAsText(file);
@@ -179,6 +166,7 @@
             });
 
             const generateQRCode = (boxId) => {
+                 // Simple URL scheme
                  const url = `${window.location.href.split('?')[0]}?box=${boxId}`;
                  if(qrRef.current) {
                     qrRef.current.innerHTML = ""; 
@@ -186,6 +174,7 @@
                  }
             };
             
+            // Effect to render QR when detail view opens
             useEffect(() => {
                 if (selectedBox && view === 'detail') setTimeout(() => generateQRCode(selectedBox.id), 100);
             }, [selectedBox, view]);
@@ -200,24 +189,14 @@
                 }
             };
 
-            const openBox = (box) => {
-                setSelectedBox(box);
-                setSelectedBoxImage(box.images[0] || null); 
-                setView('detail');
-            };
-            
             const analyze = async () => {
-                if (!apiKey) {
-                    alert("Please enter your Gemini API Key in Settings first.");
-                    setShowSettings(true);
-                    return;
-                }
+                if (!apiKey) return alert("Enter API Key in Settings first.");
                 if (!newBox.images[0]) return alert("Add photo first.");
                 
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    const prompt = `Analyze this image of packed items. List every distinct item found. IMPORTANT: If text is visible on packaging, INCLUDE IT in the item name. Return ONLY a JSON object: { "items": ["Item 1 - details", "Item 2"], "name": "Suggested Box Name" }`;
+                    const prompt = `Analyze this image. List items visible. If you see text on boxes/labels, include it. Return JSON ONLY: { "items": ["Item 1", "Item 2"], "name": "Suggested Box Name" }`;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -233,27 +212,25 @@
                         items: [...new Set([...p.items, ...(json.items || [])])],
                         name: p.name || json.name || "" 
                     }));
-
                 } catch (e) { alert("AI Error: " + e.message); }
                 setIsAnalyzing(false);
             };
 
             const saveBox = () => {
-                if (!newBox.name) return alert("Error: Please enter a 'Box Name'.");
+                if (!newBox.name) return alert("Enter Box Name.");
                 const newId = `box_${Date.now()}`;
                 const boxToSave = { ...newBox, id: newId, createdAt: Date.now() };
                 setBoxes(prev => [boxToSave, ...prev]);
                 setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
                 setRawFile(null);
-                alert("Box saved locally!");
+                alert("Saved!");
                 setView('dashboard');
             };
 
             const deleteBox = (id) => {
-                if(confirm("Delete this box?")) {
+                if(confirm("Delete box?")) {
                     setBoxes(prev => prev.filter(b => b.id !== id));
-                    if (selectedBox && selectedBox.id === id) setSelectedBox(null);
-                    setView('dashboard');
+                    if (view === 'detail') setView('dashboard');
                 }
             };
 
@@ -261,7 +238,8 @@
                 setShowScanner(false);
                 const boxId = txt.includes('?box=') ? txt.split('?box=')[1] : txt;
                 const found = boxes.find(b => b.id === boxId);
-                if (found) openBox(found); else alert(`Box ID "${boxId}" not found.`);
+                if (found) { setSelectedBox(found); setView('detail'); } 
+                else { alert("Box not found."); }
             };
 
             const filteredBoxes = boxes.filter(b => {
@@ -269,120 +247,168 @@
                 return !q || b.name.toLowerCase().includes(q) || b.items.some(i => i.toLowerCase().includes(q));
             });
 
-            if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
-
-            // --- VIEW: SETTINGS ---
-             if (showSettings) return (
+            // --- RENDER: SETTINGS ---
+            if (view === 'settings') return (
                 <div className="p-6 bg-white min-h-screen">
-                    <div className="flex justify-between items-center mb-6">
-                         <h2 className="text-xl font-bold text-slate-900">Settings</h2>
-                         <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} /></button>
+                    <div className="flex justify-between items-center mb-8">
+                         <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
+                         <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} className="w-6 h-6" /></button>
                     </div>
-                    <div className="mb-6">
-                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key (Local Storage)</label>
-                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={handleSaveKey} placeholder="AIza..." />
+                    
+                    <div className="mb-8">
+                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
+                        <input className="w-full p-4 border rounded-xl font-mono text-sm bg-slate-50" type="password" value={apiKey} onChange={e => {
+                            setApiKey(e.target.value);
+                            localStorage.setItem('gemini_key', e.target.value);
+                        }} placeholder="Paste AIza key here..." />
+                        <p className="text-xs mt-2 text-slate-400">Required for AI item detection.</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                        <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center text-center">
-                            <Icon d={Icons.download} className="mb-1" /> Save / Backup
+
+                    <div className="grid grid-cols-1 gap-4">
+                        <button onClick={exportData} className="p-6 border-2 border-blue-100 bg-blue-50 rounded-2xl text-blue-700 font-bold flex flex-col items-center justify-center card-shadow active:scale-95 transition-transform">
+                            <Icon d={Icons.download} className="w-8 h-8 mb-2" /> 
+                            <span>Backup / Export</span>
+                            <span className="text-xs font-normal opacity-75 mt-1">Save data to file</span>
                         </button>
-                        <button onClick={() => importRef.current.click()} className="p-4 border-2 border-green-100 bg-green-50 rounded-xl text-green-700 font-bold flex flex-col items-center">
-                            <Icon d={Icons.upload} className="mb-1" /> Restore
-                        </button>
-                        <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
+                        
+                        <div className="relative">
+                            <input type="file" accept=".json" ref={importRef} onChange={importData} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                            <div className="p-6 border-2 border-green-100 bg-green-50 rounded-2xl text-green-700 font-bold flex flex-col items-center justify-center card-shadow active:scale-95 transition-transform">
+                                <Icon d={Icons.upload} className="w-8 h-8 mb-2" />
+                                <span>Restore Data</span>
+                                <span className="text-xs font-normal opacity-75 mt-1">Load from file</span>
+                            </div>
+                        </div>
                     </div>
-                    <p className="text-xs text-slate-500 p-3 bg-yellow-50 rounded-lg">⚠️ Warning: Data is saved in browser memory. Backup often!</p>
                 </div>
             );
 
-            // --- VIEW: ADD ---
+            // --- RENDER: ADD ---
             if (view === 'add') return (
-                <div className="p-6 bg-white min-h-screen animate-in flex flex-col pb-32">
+                <div className="p-6 bg-white min-h-screen flex flex-col pb-32">
                     <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
                         <span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box
                     </div>
+                    
                     <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
-                    <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
-                        {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
-                        <span className="relative font-bold text-sm mt-1">Tap to Add Photo</span>
+                    <div onClick={() => fileRef.current.click()} className="h-48 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 mb-4 relative overflow-hidden cursor-pointer hover:bg-slate-200 transition-colors">
+                        {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-90"/> : <Icon d={Icons.camera} className="w-10 h-10"/>}
+                        <span className="relative font-bold text-sm mt-2 bg-white/90 px-3 py-1 rounded-full shadow-sm">
+                            {newBox.images[0] ? 'Change Photo' : 'Tap to Add Photo'}
+                        </span>
                     </div>
-                    <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
-                        {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
+
+                    <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg mb-8 flex justify-center items-center gap-2 disabled:bg-gray-200 disabled:text-gray-400 active:scale-95 transition-transform">
+                        {isAnalyzing ? "Scanning..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Auto-Detect Items</>}
                     </button>
-                    <div className="space-y-4 flex-1">
-                        <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                        <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
-                            <div className="flex flex-wrap gap-2 mb-2">
-                                {newBox.items.map((item, i) => (
-                                    <span key={i} className="bg-white border px-2 py-1 rounded text-xs flex items-center gap-1 shadow-sm">{item} <span onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))}>×</span></span>
-                                ))}
-                            </div>
-                            <input className="w-full bg-transparent text-sm outline-none" placeholder="Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, e.target.value]})); e.target.value = ''; }}} />
+
+                    <div className="space-y-5 flex-1">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Box Name</label>
+                            <input className="w-full p-4 border border-slate-200 rounded-xl text-lg font-semibold" placeholder="e.g. Garage Tools" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
                         </div>
-                        <select className="w-full p-3 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
+                        
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Contents</label>
+                            <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[4rem]">
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    {newBox.items.map((item, i) => (
+                                        <span key={i} className="bg-white border px-2 py-1 rounded text-xs flex items-center gap-1 shadow-sm font-medium">
+                                            {item} <span onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))} className="text-slate-400 hover:text-red-500 cursor-pointer ml-1">×</span>
+                                        </span>
+                                    ))}
+                                </div>
+                                <input className="w-full bg-transparent text-sm outline-none p-1" placeholder="Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, e.target.value]})); e.target.value = ''; }}} />
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location</label>
+                            <select className="w-full p-4 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
+                        </div>
                     </div>
-                    <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2">Save Box</button>
+                    <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-8 text-lg shadow-xl hover:bg-green-700 active:scale-95 transition-transform">Save Box</button>
                 </div>
             );
 
-            // --- VIEW: DETAIL ---
+            // --- RENDER: DETAIL ---
             if (view === 'detail' && selectedBox) return (
                 <div className="p-6 bg-white min-h-screen animate-in">
                     <div className="flex justify-between items-center mb-4">
                         <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
                         <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
                     </div>
-                    <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300">
-                        {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
+                    <div className="w-full h-64 bg-slate-100 rounded-2xl overflow-hidden border mb-6 shadow-md flex items-center justify-center">
+                        {selectedBox.images[0] ? <img src={selectedBox.images[0]} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-16 h-16 text-slate-300" />}
                     </div>
-                    <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
-                    <p className="text-slate-500 mb-6">{selectedBox.room}</p>
-                    <div className="bg-slate-50 p-4 rounded-xl border mb-6 flex flex-wrap gap-2">
-                        {selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm shadow-sm">{item}</span>)}
+                    <h2 className="text-3xl font-bold text-slate-900 leading-tight">{selectedBox.name}</h2>
+                    <p className="text-indigo-600 font-semibold mb-6">{selectedBox.room}</p>
+                    
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 mb-8">
+                        <h4 className="font-bold text-xs uppercase text-slate-400 mb-3 tracking-wider">Contents</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {selectedBox.items.map((item, i) => <span key={i} className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 shadow-sm">{item}</span>)}
+                        </div>
                     </div>
-                    <div className="text-center border-t pt-6">
-                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
-                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
+                    
+                    <div className="text-center border-t pt-8">
+                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-xl mb-4 w-48 h-48 flex items-center justify-center bg-white shadow-lg"></div>
+                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-3 shadow-lg active:scale-95 transition-transform"><Icon d={Icons.package} className="w-6 h-6" /> Print Label</button>
                     </div>
                 </div>
             );
 
-            // --- VIEW: DASHBOARD ---
+            // --- RENDER: DASHBOARD ---
             return (
                 <div className="p-5 bg-slate-50 min-h-screen pb-32">
-                    <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap Offline</h1>
+                    {showScanner && <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
+                    
+                    <div className="flex justify-between items-center mb-8 pt-2">
+                        <h1 className="text-3xl font-black flex items-center gap-2 text-slate-900 tracking-tight"><Icon d={Icons.package} className="w-8 h-8 text-indigo-600" /> BoxSnap</h1>
                         <div className="flex gap-2">
-                            {/* ADDED: Direct Backup Button on Dashboard */}
-                            <button onClick={exportData} className="p-3 bg-blue-600 text-white rounded-full shadow-lg"><Icon d={Icons.download} className="w-5 h-5" /></button>
-                            <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-900 text-white rounded-full shadow-lg"><Icon d={Icons.settings} className="w-5 h-5" /></button>
-                            <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
+                            <button onClick={() => exportData()} className="p-3 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition"><Icon d={Icons.download} className="w-5 h-5" /></button>
+                            <button onClick={() => setView('settings')} className="p-3 bg-white text-slate-700 rounded-full shadow-sm border border-slate-200"><Icon d={Icons.settings} className="w-5 h-5" /></button>
+                            <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-200 active:scale-95 transition"><Icon d={Icons.scan} className="w-5 h-5" /></button>
                         </div>
                     </div>
 
-                    <div className="relative mb-4">
-                        <input className="w-full p-3 pl-10 border rounded-xl shadow-sm" placeholder="Search items..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                        <div className="absolute left-3 top-3 text-slate-400"><Icon d={Icons.search} /></div>
+                    <div className="relative mb-6">
+                        <input className="w-full p-4 pl-12 border-0 rounded-2xl shadow-sm bg-white text-lg focus:ring-2 focus:ring-indigo-500" placeholder="Search items..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                        <div className="absolute left-4 top-4 text-slate-400"><Icon d={Icons.search} /></div>
                     </div>
 
-                    <div className="space-y-3">
-                        {boxes.map(box => (
-                            <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 active:scale-[.98] transition-transform">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="font-bold text-lg text-slate-900">{box.name}</h3>
-                                    <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
+                    {boxes.length === 0 ? (
+                        <div className="text-center py-20 opacity-50">
+                            <Icon d={Icons.package} className="w-16 h-16 mx-auto mb-4 text-slate-300" />
+                            <p>No boxes yet. Start packing!</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {filteredBoxes.map(box => (
+                                <div key={box.id} onClick={() => { setSelectedBox(box); setView('detail'); }} className="bg-white p-5 rounded-2xl shadow-sm flex flex-col gap-3 border border-slate-100 card-shadow active:scale-[0.98] transition-transform cursor-pointer relative overflow-hidden">
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${STATUS_COLORS[box.status || 'Packing'].split(' ')[0]}`}></div>
+                                    <div className="flex justify-between items-start pl-3">
+                                        <div>
+                                            <h3 className="font-bold text-lg text-slate-800 leading-tight">{box.name}</h3>
+                                            <p className="text-xs font-medium text-slate-500 mt-1">{box.room} • {box.items.length} Items</p>
+                                        </div>
+                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide ${STATUS_COLORS[box.status || 'Packing']}`}>{box.status}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 pl-3 pt-1">
+                                        {box.items.slice(0, 3).map((item, i) => {
+                                            const isMatch = searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase());
+                                            return <span key={i} className={`text-[10px] px-2 py-1 rounded border ${isMatch ? 'bg-yellow-200 border-yellow-400 font-bold text-black' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>{item}</span>
+                                        })}
+                                        {box.items.length > 3 && <span className="text-[10px] text-slate-400 px-1 self-center">+{box.items.length - 3}</span>}
+                                    </div>
                                 </div>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                    {box.items.slice(0, 3).map((item, i) => (
-                                        <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>
-                                    ))}
-                                    {box.items.length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                     
-                    <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
+                    <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-black text-white p-4 pr-6 rounded-full shadow-2xl flex items-center gap-3 hover:scale-105 transition-transform z-20">
+                        <Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold text-lg">New Box</span>
+                    </button>
                 </div>
             );
         }
