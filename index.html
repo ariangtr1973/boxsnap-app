@@ -114,7 +114,8 @@
                     img.src = event.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 800; 
+                        // UPDATED: Increased for better text readability
+                        const MAX_WIDTH = 1024; 
                         const scaleSize = MAX_WIDTH / img.width;
                         canvas.width = MAX_WIDTH;
                         canvas.height = img.height * scaleSize;
@@ -124,26 +125,6 @@
                     };
                 };
             });
-
-            const generateQRCode = (boxId) => {
-                 // Simple URL scheme: app-url?box=ID
-                 const url = `${window.location.href.split('?')[0]}?box=${boxId}`;
-                 if(qrRef.current) {
-                    qrRef.current.innerHTML = ""; // Clear previous
-                    new QRCode(qrRef.current, {
-                        text: url,
-                        width: 128,
-                        height: 128
-                    });
-                 }
-            };
-            
-            useEffect(() => {
-                if (selectedBox && view === 'detail') {
-                    setTimeout(() => generateQRCode(selectedBox.id), 100);
-                }
-            }, [selectedBox, view]);
-
 
             // --- ACTIONS ---
             const handlePhoto = async (e) => {
@@ -174,12 +155,16 @@
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
                     
-                    // High-Detail prompt: Focus on reading labels and specifics
+                    // UPDATED: Super-Resolution Prompt
                     const prompt = `
-                        Analyze this image of packed items. 
-                        List every distinct item found. 
-                        IMPORTANT: If text is visible on packaging (brands, dimensions like '1/4 inch', '500 count'), INCLUDE IT in the item name (e.g., 'Screws - 1/4 inch x 3').
-                        Return ONLY a JSON object: { "items": ["Item 1 - details", "Item 2"] }
+                        Analyze this image of items to be packed.
+                        Goal: Create a detailed inventory list.
+                        
+                        1. List every distinct item you can see.
+                        2. CRITICAL: Read all visible text, labels, and packaging. If you see specific dimensions (e.g. '1/4 inch'), quantities (e.g. '500 count'), or brand names, include them in the item name.
+                        3. Suggest a short, descriptive 'box_name' based on the group of items (e.g. 'Plumbing Parts' or 'Summer Clothes').
+                        
+                        Return ONLY valid JSON: { "items": ["Item 1 - Details", "Item 2"], "box_name": "Suggested Name" }
                     `;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
@@ -190,7 +175,6 @@
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
                     
-                    // Note: API returns a JSON string, which we parse and then extract the list
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
                     
                     setNewBox(p => ({
@@ -280,7 +264,7 @@
                     <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
                     <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
                         {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
-                        <span className="relative font-bold text-sm mt-1">Add Photo</span>
+                        <span className="relative font-bold text-sm mt-1">Tap to Add Photo</span>
                     </div>
                     
                     <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
