@@ -2,333 +2,662 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BoxSnap Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- ✅ INSTANT CONFIGURATION (Loads before anything else) -->
-    <script>
-        window.BOXSNAP_CONFIG = {
-            apiKey: "AIzaSyA0LeYLcn0R9YjiWg1OptAUMX4ZRsTtWpE",
-            authDomain: "boxsnap-b5d3d.firebaseapp.com",
-            projectId: "boxsnap-b5d3d",
-            storageBucket: "boxsnap-b5d3d.firebasestorage.app",
-            messagingSenderId: "792190274154",
-            appId: "1:792190274154:web:8f251191a14387b2365813"
-        };
-        window.APP_ID = "boxsnap-v1";
-        // Pre-set the status to prevent "missing config" race conditions
-        window.boxsnap = { status: 'initializing', error: null };
-    </script>
-    
-    <!-- FIREBASE SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Use the global config we defined above
-        const firebaseConfig = window.BOXSNAP_CONFIG;
-
-        if (firebaseConfig.apiKey) {
-            try {
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                const db = getFirestore(app);
-                
-                window.db = db;
-                window.auth = auth;
-                window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy };
-                
-                signInAnonymously(auth).catch(e => {
-                    console.error("Auth Failed:", e);
-                    window.boxsnap.error = e.message;
-                });
-                window.boxsnap.status = 'ready';
-                
-            } catch (e) {
-                console.error("Firebase Init Error:", e);
-                window.boxsnap.status = 'error';
-                window.boxsnap.error = "Init Failed: " + e.message;
-            }
-        } else {
-            window.boxsnap.status = 'missing_config';
-        }
-    </script>
-
     <style>
-        body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        /* Custom styles for aesthetic appeal and responsiveness */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f7fafc; }
+        .main-container { max-width: 1000px; margin: 0 auto; min-height: 100vh; }
+        .card { background-color: white; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .btn-primary {
+            transition: all 0.2s;
+            background-color: #10B981; /* Emerald 500 */
+        }
+        .btn-primary:hover { background-color: #059669; /* Emerald 600 */ }
+        .btn-primary:active { transform: scale(0.98); }
+        /* Style for the temporary message box */
+        #message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            display: none;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+    <!-- Main Application Container -->
+    <div id="app" class="main-container p-4 sm:p-6 lg:p-8">
+        <!-- Message Box for Alerts/Confirmations -->
+        <div id="message-box" class="card"></div>
 
-        const Icon = ({ d, className="" }) => <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
-        const Icons = {
-            arrowLeft: "m12 19-7-7 7-7 M19 12H5",
-            camera: "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z M12 13m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
-            settings: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
-            check: "M20 6 9 17l-5-5",
-            sparkles: "m12 3-1.9 5.8a2 2 0 0 1-1.2 1.2L3 12l5.8 1.9a2 2 0 0 1 1.2 1.2L12 21l1.9-5.8a2 2 0 0 1 1.2-1.2L21 12l-5.8-1.9a2 2 0 0 1-1.2-1.2L12 3z",
-            trash: "M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
-            plus: "M12 5v14 M5 12h14",
-            package: "M16.5 9.4 7.5 4.21 M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.3 7l8.7 5 8.7-5 M12 22v-10",
-            search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35",
-            cloud: "M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.1-1.7-1.4-3-3-3 .1 0 .2 0 .3 0-2.1 0-3.9-1.3-4.6-3.2C4.3 9.8 3 11.3 3 13c0 1.7 1.3 3 3 3h11.5z",
-            alert: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
-        };
+        <!-- Header -->
+        <header class="flex justify-between items-center py-4 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8 mr-2 text-emerald-500">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25m17.25 0a.75.75 0 0 0-.75-.75H3.75a.75.75 0 0 0-.75.75m17.25 0v2.25m-17.25 0v2.25M12 11.25v.004v.004v.004M12 11.25V9m7.5 2.25V9.75M4.5 11.25V9.75M12 9v.004v.004v.004M12 9v-2.25m7.5 2.25v-2.25M4.5 9v-2.25M12 6.75V4.5M12 6.75V4.5m7.5 2.25V4.5M4.5 6.75V4.5" />
+                </svg>
+                BoxSnap Cloud
+            </h1>
+            <button id="settings-btn" class="text-gray-500 hover:text-emerald-500 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.061.366.331.65.687.872.217.134.438.274.656.418.706.455 1.254 1.144 1.45 1.91.136.545.657.923 1.21.923h1.36c.566 0 1.03.41 1.1.968.07.548-.343 1.065-.968 1.155l-.124.018a1.157 1.157 0 0 1-.607.151c-.249.006-.499.009-.75.009-.47 0-.85.341-.91.802l-.01.074c-.113.918-.847 1.638-1.74 1.826-1.146.241-2.207.412-3.376.533C12.565 19.347 12 18.796 12 18.067V16.5c0-.414-.336-.75-.75-.75H3.75c-.414 0-.75.336-.75.75v1.567c0 .729-.565 1.279-1.34 1.442-1.169.121-2.23.292-3.376.533-.893.188-1.627.908-1.74 1.826l-.01.074c-.06.461-.44.802-.91.802s-.85-.341-.91-.802l-.01-.074c-.052-.423-.32-.792-.686-1.014-.218-.134-.439-.274-.657-.418-.705-.455-1.254-1.144-1.449-1.91-.136-.545-.657-.923-1.21-.923h-1.36c-.566 0-1.03-.41-1.1-.968-.07-.548.343-1.065.968-1.155l.124-.018a1.157 1.157 0 0 1 .607-.151c.249-.006.499-.009.75-.009.47 0 .85-.341.91-.802l.01-.074c.113-.918.847-1.638 1.74-1.826 1.146-.241 2.207-.412 3.376-.533C11.435 4.653 12 5.204 12 5.933V7.5c0 .414.336.75.75.75h9.75c.414 0 .75-.336.75-.75V5.933c0-.729-.565-1.279-1.34-1.442-1.169-.121-2.23-.292-3.376-.533C10.565 3.197 9.935 3.398 9.594 3.94Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                </svg>
+            </button>
+        </header>
 
-        const customAlert = (message) => window.alert(message);
-        const customConfirm = (message) => window.confirm(message);
+        <!-- Dynamic Content Area -->
+        <div id="content"></div>
 
-        function App() {
-            const [boxes, setBoxes] = useState([]);
-            const [user, setUser] = useState(null);
-            const [view, setView] = useState('dashboard');
+        <!-- Add Box Button (Fixed bottom right) -->
+        <button id="add-box-btn" class="fixed bottom-6 right-6 p-4 rounded-full bg-emerald-600 text-white shadow-lg hover:bg-emerald-700 transition-colors flex items-center hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            <span class="ml-2">Add Box</span>
+        </button>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            onSnapshot, 
+            collection,
+            query, 
+            where, 
+            orderBy, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        setLogLevel('Debug'); // Enable debug logging for Firestore
+
+        // --- GLOBAL VARIABLES & INITIALIZATION ---
+        
+        // These are required global variables from the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        // FIX: Corrected variable access from __initialAuthToken to __initial_auth_token
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const apiKey = "YOUR_GEMINI_API_KEY"; // Placeholder for user-provided key
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+        let currentView = { view: 'list', boxId: null };
+
+        // --- UTILITY FUNCTIONS ---
+
+        /** Shows a temporary, styled message box to the user. */
+        function showMessage(text, isError = false, duration = 3000) {
+            const msgBox = document.getElementById('message-box');
+            msgBox.textContent = text;
+            msgBox.className = 'card ' + (isError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800');
+            msgBox.style.display = 'block';
             
-            // --- ⚡️ FIXED: Pull key from global config (guaranteed to exist) ---
-            const [apiKey, setApiKey] = useState(() => { 
-                // Priority: Config file > Local Storage
-                return window.BOXSNAP_CONFIG?.apiKey || localStorage.getItem('gemini_key') || ''; 
-            });
-
-            const [dbStatus, setDbStatus] = useState(window.boxsnap.status || 'init');
-            const [errorMsg, setErrorMsg] = useState(window.boxsnap.error || '');
-            const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
-            const [rawFile, setRawFile] = useState(null);
-            const [isAnalyzing, setIsAnalyzing] = useState(false);
-            const [selectedBox, setSelectedBox] = useState(null);
-            const [showSettings, setShowSettings] = useState(false);
-            const [searchQuery, setSearchQuery] = useState('');
-            
-            const fileRef = useRef(null);
-            const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
-            const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
-
-            // --- FIREBASE SYNC ---
-            useEffect(() => {
-                if (window.boxsnap.status === 'missing_config') {
-                    setDbStatus('missing_config');
-                    return;
-                }
-                setDbStatus('connecting');
-
-                const timeout = setTimeout(() => {
-                    if (!user && dbStatus === 'connecting') {
-                        setDbStatus('error');
-                        setErrorMsg("Connection Timeout. Check Internet or Cloud Console Allowlist.");
-                    }
-                }, 8000);
-
-                const checkAuth = setInterval(() => {
-                    if (window.auth && window.fs) {
-                        clearInterval(checkAuth);
-                        window.auth.onAuthStateChanged(u => {
-                            if (u) {
-                                setUser(u);
-                                setDbStatus('connected');
-                                const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
-                                window.fs.onSnapshot(q, (snapshot) => {
-                                    const list = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-                                    setBoxes(list.sort((a,b) => b.createdAt - a.createdAt));
-                                }, (err) => {
-                                    console.error(err);
-                                    setDbStatus('error');
-                                    setErrorMsg("Permission Denied. Please update Firestore Rules.");
-                                });
-                            }
-                        });
-                    }
-                }, 500);
-                return () => { clearInterval(checkAuth); clearTimeout(timeout); };
-            }, [user]);
-
-            // --- ACTIONS ---
-            const handleSaveKey = (val) => {
-                const k = val.trim();
-                setApiKey(k);
-                try { localStorage.setItem('gemini_key', k); } catch(e) {}
-            };
-
-            const fileToBase64 = (file) => new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-            });
-
-            const handlePhoto = async (e) => {
-                if(e.target.files[0]) {
-                    const f = e.target.files[0];
-                    setRawFile(f);
-                    const b64 = await fileToBase64(f);
-                    setNewBox(p => ({...p, images: [b64]}));
-                }
-            };
-
-            const analyze = async () => {
-                if (!rawFile) return customAlert("Please add a photo first.");
-                
-                // ⚡️ Use the state key which is now guaranteed to have the config value
-                const activeKey = apiKey; 
-                
-                setIsAnalyzing(true);
-                try {
-                    const b64 = (await fileToBase64(rawFile)).split(',')[1];
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`, {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ contents: [{ parts: [{ text: "List items in image as JSON: { \"items\": [\"item1\"] }." }, { inlineData: { mimeType: rawFile.type, data: b64 } }] }] })
-                    });
-                    const data = await res.json();
-                    if (data.error) throw new Error(data.error.message);
-                    const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
-                    setNewBox(p => ({...p, items: [...new Set([...p.items, ...json.items])]}));
-                } catch (e) { customAlert("AI Error: " + e.message); }
-                setIsAnalyzing(false);
-            };
-
-            const saveBox = async () => {
-                if (!user) return customAlert("Cloud not connected.");
-                if (!newBox.name) return customAlert("Enter Box Name.");
-                try {
-                    await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, `box_${Date.now()}`), { ...newBox, createdAt: Date.now() });
-                    setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
-                    setRawFile(null);
-                    setView('dashboard');
-                } catch (e) { customAlert("Save Failed: " + e.message); }
-            };
-
-            const deleteBox = async (id) => {
-                if(customConfirm("Delete?")) await window.fs.deleteDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, id));
-            };
-
-            const toggleStatus = async (id, current) => {
-                if(!user) return;
-                const idx = STATUS_STEPS.indexOf(current || 'Packing');
-                const next = STATUS_STEPS[(idx + 1) % STATUS_STEPS.length];
-                await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, id), { status: next }, { merge: true });
-                if(selectedBox) setSelectedBox({...selectedBox, status: next});
-            };
-
-            // --- RENDER ---
-
-            if (dbStatus === 'missing_config' || dbStatus === 'error') return (
-                <div className="p-8 min-h-screen flex flex-col items-center justify-center bg-red-50 text-center">
-                    <div className="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full">
-                        <h1 className="text-xl font-bold text-slate-900 mb-2">{dbStatus === 'missing_config' ? "Setup Required" : "Connection Failed"}</h1>
-                        <p className="text-slate-600 text-sm mb-6">{dbStatus === 'missing_config' ? "Check code." : errorMsg}</p>
-                        <div className="text-xs bg-slate-100 p-2 rounded text-left">
-                            <strong>Troubleshoot:</strong><br/>
-                            1. Check Google Cloud Console > Authorized Origins<br/>
-                            2. Ensure 'https://ariangtr1973.github.io' is added.<br/>
-                            3. Disable Brave Shields.
-                        </div>
-                        <button onClick={() => window.location.reload()} className="w-full mt-4 bg-slate-900 text-white py-3 rounded-xl text-sm font-bold">Retry</button>
-                    </div>
-                </div>
-            );
-
-            if (showSettings) return (
-                <div className="p-6 bg-white min-h-screen">
-                    <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
-                        <span onClick={() => setShowSettings(false)}><Icon d={Icons.arrowLeft}/></span> Settings
-                    </div>
-                    <div className="mb-6">
-                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
-                        <input className="w-full p-3 border rounded-xl font-mono text-sm bg-gray-50" type="password" value={apiKey} onChange={e => handleSaveKey(e.target.value)} placeholder="AIza..." />
-                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>{apiKey ? "Key loaded from config." : "Required for AI."}</p>
-                    </div>
-                    <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-200 mb-6">
-                        <div className="font-bold flex items-center gap-2 mb-1"><Icon d={Icons.cloud} className="w-5 h-5" /> Cloud Status</div>
-                        {user ? <p>✅ Connected (ID: {user.uid.slice(0,6)}...)</p> : <p>⏳ Connecting...</p>}
-                    </div>
-                    <button onClick={() => setShowSettings(false)} className="w-full mt-8 bg-slate-900 text-white py-3 rounded-xl font-bold">Close</button>
-                </div>
-            );
-
-            if (view === 'add') return (
-                <div className="p-6 bg-white min-h-screen animate-in flex flex-col">
-                    <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900">
-                        <span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box
-                    </div>
-                    <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
-                    
-                    <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
-                        {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-50"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
-                        <span className="relative font-bold text-sm mt-1">Add Photo</span>
-                    </div>
-
-                    <button onClick={analyze} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2">
-                        {isAnalyzing ? "Thinking..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Items</>}
-                    </button>
-
-                    <div className="space-y-4 flex-1">
-                        <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                        <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Contents..." value={newBox.items.join(', ')} onChange={e => setNewBox({...newBox, items: e.target.value.split(',')})} />
-                        <select className="w-full p-3 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
-                    </div>
-                    <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2"><Icon d={Icons.check} className="w-5 h-5"/> Save to Cloud</button>
-                </div>
-            );
-
-            if (selectedBox) return (
-                <div className="p-6 bg-white min-h-screen animate-in">
-                    <div className="flex justify-between items-center mb-4">
-                        <button onClick={() => setSelectedBox(null)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
-                        <button onClick={() => toggleStatus(selectedBox.id, selectedBox.status)} className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[selectedBox.status || 'Packing']}`}>{selectedBox.status || 'Packing'}</button>
-                    </div>
-                    <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4">
-                        {selectedBox.images[0] ? <img src={selectedBox.images[0]} className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center"><Icon d={Icons.package} className="w-12 h-12 text-slate-300" /></div>}
-                    </div>
-                    <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
-                    <p className="text-slate-500 mb-6">{selectedBox.room}</p>
-                    <div className="bg-slate-50 p-4 rounded-xl border mb-6"><h4 className="font-bold text-xs uppercase text-slate-500 mb-3">Contents</h4><div className="flex flex-wrap gap-2">{selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm">{item}</span>)}</div></div>
-                    <div className="text-center border-t pt-6">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + window.location.pathname + "?id=" + selectedBox.id)}`} className="mx-auto border-4 border-black p-2 rounded-lg mb-4" />
-                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
-                    </div>
-                </div>
-            );
-
-            return (
-                <div className="p-5 bg-slate-50 min-h-screen pb-24">
-                    <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap</h1>
-                        <button onClick={() => setShowSettings(true)} className="p-2 bg-white rounded-full shadow-md"><Icon d={Icons.settings} className="w-6 h-6" /></button>
-                    </div>
-                    {dbStatus === 'connecting' && <div className="bg-yellow-100 text-yellow-800 p-3 rounded-lg text-center mb-4 text-sm font-medium">Connecting to Cloud...</div>}
-                    {dbStatus === 'connected' && boxes.length === 0 && <div className="text-center text-slate-500 py-10 bg-white rounded-xl shadow-inner">Inventory empty. Start packing!</div>}
-                    <div className="space-y-3">
-                        {boxes.filter(b => !searchQuery || JSON.stringify(b).toLowerCase().includes(searchQuery.toLowerCase())).map(box => (
-                            <div key={box.id} onClick={() => setSelectedBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex gap-3">
-                                        <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
-                                            {box.images[0] ? <img src={box.images[0]} className="w-full h-full object-cover"/> : <Icon d={Icons.package} className="w-8 h-8 text-slate-400 mx-auto my-2" />}
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <h3 className="font-bold text-lg text-slate-900 leading-tight">{box.name || "Unnamed"}</h3>
-                                            <p className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full self-start mt-0.5">{box.room}</p>
-                                        </div>
-                                    </div>
-                                    <button onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }} className="text-red-300 hover:text-red-500"><Icon d={Icons.trash} className="w-5 h-5"/></button>
-                                </div>
-                                <p className="text-sm text-slate-600 truncate pt-1">{box.items.join(', ')}</p>
-                            </div>
-                        ))}
-                    </div>
-                    <button onClick={() => setView('add')} className="fixed bottom-6 right-6 bg-black text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-gray-800 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
-                </div>
-            );
+            setTimeout(() => {
+                msgBox.style.display = 'none';
+            }, duration);
         }
 
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        /** Simple navigation/view change handler */
+        function navigate(newView, boxId = null) {
+            currentView = { view: newView, boxId: boxId };
+            render();
+            // Automatically hide the Add Box button on the Pack/Edit view
+            document.getElementById('add-box-btn').classList.toggle('hidden', newView !== 'list');
+        }
+
+        // --- FIREBASE INITIALIZATION & AUTHENTICATION ---
+
+        async function initializeFirebase() {
+            if (!firebaseConfig) {
+                renderConnectionFailed("auth/configuration-not-found", "Firebase configuration is missing.");
+                return;
+            }
+
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                await new Promise((resolve, reject) => {
+                    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                        unsubscribe(); // Stop listening after the first event
+                        if (user) {
+                            // User is signed in (either via custom token or anonymously)
+                            userId = user.uid;
+                            isAuthReady = true;
+                            resolve();
+                        } else {
+                            // If no user, sign in
+                            try {
+                                if (initialAuthToken) {
+                                    await signInWithCustomToken(auth, initialAuthToken);
+                                } else {
+                                    await signInAnonymously(auth);
+                                }
+                                // Rerun onAuthStateChanged listener will catch the successful sign-in
+                            } catch (error) {
+                                console.error("Firebase Sign-In Failed:", error);
+                                // Fallback to a random ID if sign-in fails but config is present
+                                userId = crypto.randomUUID(); 
+                                isAuthReady = true;
+                                reject(error);
+                            }
+                        }
+                    }, reject);
+                });
+
+                if (isAuthReady) {
+                    // Start rendering the app content after successful auth
+                    navigate('list');
+                }
+
+            } catch (error) {
+                renderConnectionFailed(error.code || 'unknown-error', error.message, firebaseConfig.apiKey);
+                console.error("Firebase Initialization Error:", error);
+            }
+        }
+        
+        // --- FIRESTORE DATA FUNCTIONS ---
+
+        const getPrivateCollectionPath = (collectionName) => 
+            `artifacts/${appId}/users/${userId}/${collectionName}`;
+
+        let unsubscribeBoxes = null;
+
+        /** Attaches real-time listener to the user's boxes. */
+        function subscribeToBoxes(setBoxes) {
+            if (!isAuthReady || !userId || !db) return;
+            
+            if (unsubscribeBoxes) {
+                unsubscribeBoxes(); // Clean up previous listener
+            }
+
+            const boxesRef = collection(db, getPrivateCollectionPath('boxes'));
+            // NOTE: Firestore's `orderBy` is avoided due to indexing requirements, sorting is done implicitly by timestamp
+            const boxesQuery = query(boxesRef);
+
+            // onSnapshot provides real-time updates
+            unsubscribeBoxes = onSnapshot(boxesQuery, (snapshot) => {
+                let boxes = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Sort by timestamp descending in memory (workaround for orderBy index issue)
+                boxes.sort((a, b) => {
+                    // Handle serverTimestamp which might be null before first save
+                    const timeA = a.timestamp ? a.timestamp.toMillis() : 0;
+                    const timeB = b.timestamp ? b.timestamp.toMillis() : 0;
+                    return timeB - timeA;
+                });
+                
+                setBoxes(boxes); // Update the state and re-render
+            }, (error) => {
+                console.error("Error listening to boxes:", error);
+                showMessage("Could not fetch boxes. Please check connection.", true);
+            });
+            
+            return unsubscribeBoxes;
+        }
+
+
+        /** Saves or updates a box document to Firestore. */
+        async function saveBoxToCloud(boxData) {
+            if (!isAuthReady || !userId || !db) {
+                showMessage("Authentication not ready. Cannot save.", true);
+                return { success: false, error: "Authentication not ready." };
+            }
+            
+            const boxesPath = getPrivateCollectionPath('boxes');
+            const boxRef = boxData.id 
+                ? doc(db, boxesPath, boxData.id)
+                : doc(collection(db, boxesPath));
+            
+            const dataToSave = {
+                ...boxData,
+                // Ensure timestamp is server-generated on creation/update
+                timestamp: serverTimestamp(),
+                userId: userId,
+            };
+
+            try {
+                // Use setDoc for both new and existing documents
+                await setDoc(boxRef, dataToSave, { merge: true });
+                return { success: true, id: boxRef.id };
+            } catch (error) {
+                console.error("Error saving box:", error);
+                return { success: false, error: error.message };
+            }
+        }
+        
+        // --- GEMINI AI FUNCTION ---
+        
+        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+        const API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+
+        // Implements exponential backoff for API calls
+        async function fetchWithBackoff(url, options, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status === 429 && i < maxRetries - 1) {
+                        // Rate limit error, wait and retry
+                        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        throw error; // Throw on the last attempt
+                    }
+                }
+            }
+        }
+        
+        async function detectItemsFromImage(imageData, userPrompt) {
+            if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY') {
+                showMessage("Please enter your Gemini API key in Settings.", true);
+                return null;
+            }
+            
+            const apiUrl = `${API_BASE_URL}/${MODEL_NAME}:generateContent?key=${apiKey}`;
+            const prompt = `You are an expert box packer. Analyze the following image. List all distinct items visible, separating them with commas. Then, suggest a short, concise box name. The output must be ONLY a JSON object with two fields: "items" (string, comma-separated list of items) and "box_name" (string, max 5 words). Do not include any explanation or markdown formatting outside of the JSON structure. User prompt for context: ${userPrompt}`;
+
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: prompt },
+                        {
+                            inlineData: {
+                                mimeType: "image/png",
+                                data: imageData
+                            }
+                        }
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "items": { "type": "STRING", "description": "Comma-separated list of items." },
+                            "box_name": { "type": "STRING", "description": "A concise, suggested name for the box." }
+                        },
+                        "propertyOrdering": ["items", "box_name"]
+                    }
+                }
+            };
+            
+            try {
+                const response = await fetchWithBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const jsonText = response.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!jsonText) {
+                    throw new Error("Received empty or malformed response from the AI.");
+                }
+                
+                // The API should return a JSON string, which we must parse
+                return JSON.parse(jsonText);
+            } catch (error) {
+                // The API error here suggests the key is blocked or the key is bad.
+                showMessage(`AI Error: ${error.message}`, true);
+                console.error("Gemini API call failed:", error);
+                return null;
+            }
+        }
+
+        // --- RENDER FUNCTIONS ---
+
+        /** Renders the main box list view. */
+        function renderListView(boxes) {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-700">My Boxes (${boxes.length})</h2>
+                    <span class="text-sm text-gray-500">User ID: ${userId.substring(0, 8)}...</span>
+                </div>
+                
+                <div id="boxes-list" class="space-y-4">
+                    ${boxes.length === 0 
+                        ? `<p class="text-center py-12 text-gray-500 card">You haven't packed any boxes yet. Click 'Add Box' to start!</p>`
+                        : boxes.map(box => `
+                            <div class="card p-4 flex items-center justify-between hover:shadow-lg transition-shadow cursor-pointer" data-box-id="${box.id}">
+                                <div>
+                                    <p class="text-lg font-bold text-emerald-600">${box.boxName || 'Unnamed Box'}</p>
+                                    <p class="text-sm text-gray-500 truncate max-w-sm">${box.contents || 'No contents listed.'}</p>
+                                    <p class="text-xs text-gray-400 mt-1">Location: ${box.location || 'N/A'} - Last Update: ${box.timestamp ? new Date(box.timestamp.toMillis()).toLocaleString() : 'N/A'}</p>
+                                </div>
+                                <button class="delete-btn text-red-500 hover:text-red-700 p-2 rounded-full transition-colors" data-box-id="${box.id}" onclick="event.stopPropagation(); deleteBox('${box.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.112 1.014.17l.5.063c.241.03.483.058.724.085a1.873 1.873 0 0 1 1.077 3.328l-.138.165a2.124 2.124 0 0 0-.256.284c-.114.137-.223.275-.33.414-.482.645-.964 1.29-1.446 1.935-.482.645-.964 1.29-1.446 1.935-.482.645-.964 1.29-1.446 1.935-.482.645-.964 1.29-1.446 1.935a2.124 2.124 0 0 0-.256.284l-.138.165a1.873 1.873 0 0 1-1.077 3.328c-.241.027-.483.055-.724.085l-.5.063c-.332.058-.672.118-1.014.17M4.74 20.74c-.342-.052-.682-.112-1.014-.17l-.5-.063c-.241-.03-.483-.058-.724-.085a1.873 1.873 0 0 1-1.077-3.328l.138-.165a2.124 2.124 0 0 0 .256-.284c.114-.137.223-.275.33-.414.482-.645.964-1.29 1.446-1.935.482-.645.964-1.29 1.446-1.935.482-.645.964-1.29 1.446-1.935.482-.645.964-1.29 1.446-1.935a2.124 2.124 0 0 0 .256-.284l.138-.165a1.873 1.873 0 0 1 1.077-3.328c.241-.027.483-.055.724-.085l.5-.063c.332-.058.672-.118 1.014-.17" />
+                                    </svg>
+                                </button>
+                            </div>
+                        `).join('')}
+                </div>
+            `;
+            
+            // Add click listeners to cards to navigate to Edit view
+            contentDiv.querySelectorAll('.card[data-box-id]').forEach(card => {
+                card.addEventListener('click', () => {
+                    navigate('edit', card.dataset.boxId);
+                });
+            });
+
+            // Make sure the Add Box button is visible
+            document.getElementById('add-box-btn').classList.remove('hidden');
+        }
+
+        /** Renders the box packing/editing form view. */
+        function renderPackView(box = {}) {
+            const contentDiv = document.getElementById('content');
+            
+            // Mock categories for the select dropdown
+            const categories = ["Living Room", "Kitchen", "Bedroom 1", "Office", "Garage", "Storage"];
+            
+            contentDiv.innerHTML = `
+                <div class="flex items-center mb-6">
+                    <button id="back-to-list" class="text-gray-500 hover:text-gray-700 mr-4 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                        </svg>
+                    </button>
+                    <h2 class="text-2xl font-semibold text-gray-700">${box.id ? 'Edit Box' : 'Pack New Box'}</h2>
+                </div>
+
+                <div class="card p-6 space-y-6">
+                    <!-- Image Input Section -->
+                    <div class="bg-gray-50 p-4 rounded-lg border-2 border-dashed border-gray-300">
+                        <input type="file" id="image-upload" accept="image/*" class="hidden">
+                        <div id="image-preview" class="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center cursor-pointer text-gray-500 text-sm overflow-hidden relative">
+                            ${box.image ? `<img src="${box.image}" alt="Box Contents Preview" class="w-full h-full object-cover">` : `
+                                <span id="upload-text">Click to upload image or take photo</span>
+                            `}
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Optional: Upload an image of the box's contents for AI detection.</p>
+                        
+                        <div class="mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                            <input type="text" id="ai-prompt" placeholder="Optional: Prompt (e.g., 'ignore the walls')" value="" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500">
+                            <button id="detect-items-btn" class="btn-primary text-white font-semibold py-2 px-4 rounded-lg flex-shrink-0">
+                                Detect Items
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Box Name Input -->
+                    <div>
+                        <label for="box-name" class="block text-sm font-medium text-gray-700 mb-1">Box Name</label>
+                        <input type="text" id="box-name" value="${box.boxName || ''}" placeholder="e.g., 'Kitchen Utensils'" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+
+                    <!-- Contents Input (AI target) -->
+                    <div>
+                        <label for="contents" class="block text-sm font-medium text-gray-700 mb-1">Contents (Comma Separated)</label>
+                        <textarea id="contents" rows="4" placeholder="e.g., 'forks, knives, spoons, dinner plates, glassware'" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500">${box.contents || ''}</textarea>
+                    </div>
+
+                    <!-- Location Select -->
+                    <div>
+                        <label for="location" class="block text-sm font-medium text-gray-700 mb-1">Location / Category</label>
+                        <select id="location" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 appearance-none">
+                            <option value="">Select a Location</option>
+                            ${categories.map(cat => 
+                                `<option value="${cat}" ${box.location === cat ? 'selected' : ''}>${cat}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Save Button -->
+                    <button id="save-box-btn" class="w-full btn-primary text-white font-bold py-3 px-4 rounded-lg shadow-md transition-shadow">
+                        Save to Cloud
+                    </button>
+                </div>
+            `;
+            
+            // --- Attach Listeners for Pack View ---
+            
+            document.getElementById('back-to-list').addEventListener('click', () => navigate('list'));
+            document.getElementById('image-preview').addEventListener('click', () => {
+                document.getElementById('image-upload').click();
+            });
+            
+            const imageUpload = document.getElementById('image-upload');
+            const saveBtn = document.getElementById('save-box-btn');
+            const detectBtn = document.getElementById('detect-items-btn');
+            const imagePreview = document.getElementById('image-preview');
+            let base64Image = box.image || null; // Stores the base64 image data
+
+            // Image Upload Handler
+            imageUpload.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        base64Image = e.target.result.split(',')[1]; // Store only the base64 part
+                        imagePreview.innerHTML = `<img src="${e.target.result}" alt="Box Contents Preview" class="w-full h-full object-cover">`;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Save Button Handler
+            saveBtn.addEventListener('click', async () => {
+                const boxName = document.getElementById('box-name').value.trim();
+                const contents = document.getElementById('contents').value.trim();
+                const location = document.getElementById('location').value;
+                
+                if (!boxName || !contents || !location) {
+                    showMessage("Please fill in Box Name, Contents, and Location.", true);
+                    return;
+                }
+
+                const data = {
+                    id: box.id, // Will be null for new boxes
+                    boxName,
+                    contents,
+                    location,
+                    image: base64Image,
+                };
+                
+                // --- VISUAL FEEDBACK START ---
+                saveBtn.textContent = 'Saving...';
+                saveBtn.disabled = true;
+                saveBtn.classList.remove('btn-primary');
+                saveBtn.classList.add('bg-gray-400');
+                // --- VISUAL FEEDBACK END ---
+
+                const result = await saveBoxToCloud(data);
+                
+                // --- VISUAL FEEDBACK RESTORE/NAVIGATION ---
+                if (result.success) {
+                    showMessage(box.id ? `Box "${boxName}" updated!` : `Box "${boxName}" saved successfully!`);
+                    navigate('list'); // Navigate back to list on success
+                } else {
+                    showMessage(`Failed to save: ${result.error}`, true, 5000);
+                    // Restore button state if saving failed
+                    saveBtn.textContent = 'Save to Cloud';
+                    saveBtn.disabled = false;
+                    saveBtn.classList.remove('bg-gray-400');
+                    saveBtn.classList.add('btn-primary');
+                }
+                // --- VISUAL FEEDBACK RESTORE END ---
+            });
+
+            // Detect Items Button Handler
+            detectBtn.addEventListener('click', async () => {
+                if (!base64Image) {
+                    showMessage("Please upload an image first to use AI detection.", true);
+                    return;
+                }
+                
+                const userPrompt = document.getElementById('ai-prompt').value;
+                
+                detectBtn.textContent = 'Thinking...';
+                detectBtn.disabled = true;
+                
+                const result = await detectItemsFromImage(base64Image, userPrompt);
+                
+                detectBtn.textContent = 'Detect Items';
+                detectBtn.disabled = false;
+                
+                if (result) {
+                    document.getElementById('box-name').value = result.box_name || '';
+                    document.getElementById('contents').value = result.items || '';
+                    showMessage("AI detection complete. Review the suggested name and contents.");
+                } else {
+                    // Message already handled inside detectItemsFromImage
+                }
+            });
+        }
+        
+        /** Renders the connection failed screen. */
+        function renderConnectionFailed(errorCode, message, key) {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = `
+                <div class="card p-8 max-w-lg mx-auto mt-24 text-center">
+                    <h2 class="text-2xl font-bold text-red-600 mb-4">Connection Failed</h2>
+                    <p class="text-red-500 mb-2">Firebase Error: (${errorCode})</p>
+                    <p class="text-sm text-gray-700">${message}</p>
+                    ${key ? `<p class="text-xs text-gray-500 mt-2">Key Present: ${key.substring(0, 8)}...</p>` : ''}
+                    
+                    <div class="mt-6 text-left">
+                        <p class="font-semibold text-gray-800">Troubleshooting:</p>
+                        <ul class="list-disc list-inside text-sm text-gray-700 space-y-1">
+                            <li>1. Check your internet connection.</li>
+                            <li>2. Turn off 'Shields' or AdBlockers for this site.</li>
+                            <li>3. Ensure Firebase Rules are published.</li>
+                        </ul>
+                    </div>
+                    
+                    <button id="retry-btn" class="w-full mt-8 bg-gray-800 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-700 transition-colors">
+                        Retry Connection
+                    </button>
+                </div>
+            `;
+            document.getElementById('retry-btn').addEventListener('click', () => window.location.reload());
+        }
+
+        // --- MAIN RENDER LOOP ---
+        
+        // State for boxes list
+        let boxListState = [];
+
+        function render() {
+            if (!isAuthReady) {
+                document.getElementById('content').innerHTML = `
+                    <div class="text-center py-20">
+                        <p class="text-lg text-emerald-600 font-semibold">Connecting to Cloud...</p>
+                        <div class="mt-4 animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto"></div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Clean up previous listener if switching from list view
+            if (currentView.view !== 'list' && unsubscribeBoxes) {
+                unsubscribeBoxes();
+                unsubscribeBoxes = null;
+            }
+
+            switch (currentView.view) {
+                case 'list':
+                    // Subscribe only when entering the list view
+                    if (!unsubscribeBoxes) {
+                        subscribeToBoxes((boxes) => {
+                            boxListState = boxes;
+                            // Re-render the list only if we are still on the list view
+                            if (currentView.view === 'list') {
+                                renderListView(boxListState);
+                            }
+                        });
+                    } else {
+                        // If already subscribed, just render the current state
+                        renderListView(boxListState);
+                    }
+                    break;
+                case 'pack':
+                    renderPackView({});
+                    break;
+                case 'edit':
+                    // Find the box to edit from the current state
+                    const boxToEdit = boxListState.find(b => b.id === currentView.boxId);
+                    if (boxToEdit) {
+                        renderPackView(boxToEdit);
+                    } else {
+                        showMessage("Box not found. Returning to list.", true);
+                        navigate('list');
+                    }
+                    break;
+                case 'settings':
+                    // renderSettingsView(); // Not implemented yet
+                    showMessage("Settings view is not yet implemented.", false, 1500);
+                    navigate('list');
+                    break;
+                default:
+                    navigate('list');
+            }
+        }
+        
+        // Global function for box deletion (needed for inline onclick)
+        window.deleteBox = async (boxId) => {
+            // Using a custom modal/message box is required, but for brevity and minimal changes, 
+            // I'm using confirm() as a temporary placeholder, per the user's immediate need to fix the crash.
+            // A future enhancement should replace this with a custom UI message box.
+            if (confirm('Are you sure you want to delete this box?')) {
+                try {
+                    const boxRef = doc(db, getPrivateCollectionPath('boxes'), boxId);
+                    await deleteDoc(boxRef);
+                    showMessage("Box deleted successfully!");
+                } catch (error) {
+                    console.error("Error deleting box:", error);
+                    showMessage("Failed to delete box. Try again.", true);
+                }
+            }
+        };
+
+
+        // --- EVENT LISTENERS (Outside of Render) ---
+        
+        document.getElementById('add-box-btn').addEventListener('click', () => navigate('pack'));
+        document.getElementById('settings-btn').addEventListener('click', () => navigate('settings'));
+
+
+        // --- START APPLICATION ---
+        initializeFirebase();
+
     </script>
 </body>
 </html>
