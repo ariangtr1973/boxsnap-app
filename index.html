@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -16,7 +16,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-        // --- ✅ PASTE YOUR NEW KEY BELOW (Line 20) ---
+        // --- ✅ PASTE YOUR NEW KEY BELOW ---
         const firebaseConfig = {
             apiKey: "AIzaSyC-0PvcGzYE0KDHsAHPKA5qc28FxuPl9xM", 
             authDomain: "boxsnap-b5d3d.firebaseapp.com",
@@ -28,13 +28,11 @@
 
         const APP_ID = "boxsnap-v1";
 
-        // Reset Global State
         window.boxsnap = { status: 'initializing', error: null };
-        window.firebaseConfig = firebaseConfig; // Expose for React
+        window.firebaseConfig = firebaseConfig; 
 
-        // 1. Force Clear Old Stored Keys (Fixes "Invalid Key" loops)
         try {
-            localStorage.removeItem('gemini_key');
+            localStorage.removeItem('gemini_key'); 
         } catch(e) {}
 
         if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_NEW_KEY_HERE") {
@@ -118,16 +116,7 @@
             const [boxes, setBoxes] = useState([]);
             const [user, setUser] = useState(window.currentUser || null);
             const [view, setView] = useState('dashboard');
-            
-            // --- API KEY LOGIC ---
-            // Safely access the global window.firebaseConfig
-            const [apiKey, setApiKey] = useState(() => {
-                // Check if window.firebaseConfig exists before accessing apiKey
-                if (window.firebaseConfig && window.firebaseConfig.apiKey) {
-                    return window.firebaseConfig.apiKey;
-                }
-                return localStorage.getItem('gemini_key') || "";
-            });
+            const [apiKey, setApiKey] = useState(() => window.firebaseConfig.apiKey);
             
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
@@ -143,12 +132,11 @@
             const fileRef = useRef(null);
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
 
-            // --- FIREBASE SYNC (LIST ONLY) ---
+            // --- FIREBASE SYNC ---
             useEffect(() => {
                 if (!window.auth) return;
                 window.initListener = (u) => {
                     setUser(u);
-                    // We only load the "Lightweight" box data (text) here
                     const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
                     window.fs.onSnapshot(q, (snap) => {
                         const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -178,44 +166,37 @@
                 };
             });
 
-            // --- ACTIONS ---
             const handlePhoto = async (e) => {
                 if(e.target.files[0]) {
                     const f = e.target.files[0];
                     setRawFile(f);
-                    // Preview locally immediately
                     const b64 = await compressImage(f);
                     setNewBox(p => ({...p, images: [b64]}));
                 }
             };
 
-            // Open a box and fetch its heavy image data separately
             const openBox = async (box) => {
                 setSelectedBox(box);
-                setSelectedBoxImage(null); // Clear previous
+                setSelectedBoxImage(null);
                 setIsLoadingImage(true);
-                
                 try {
-                    // Fetch the image from the sub-collection
                     const imgDoc = await window.fs.getDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${box.id}/assets/main_image`));
-                    if (imgDoc.exists()) {
-                        setSelectedBoxImage(imgDoc.data().data);
-                    }
-                } catch (e) {
-                    console.error("Image load failed", e);
-                }
+                    if (imgDoc.exists()) setSelectedBoxImage(imgDoc.data().data);
+                } catch (e) {}
                 setIsLoadingImage(false);
             };
 
             const analyze = async () => {
                 if (!newBox.images[0]) return alert("Add photo first.");
-                
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
                     
-                    // Note: Using the key from state (which comes from config or local storage)
-                    const prompt = `Analyze image. List items. Include text/brands. JSON ONLY: { "items": ["Item 1", "Item 2"] }`;
+                    const prompt = `
+                        Analyze image. List items. 
+                        IMPORTANT: Also suggest a short 'box_name' based on content (e.g. 'Garage Tools'). 
+                        JSON ONLY: { "items": ["Item 1"], "box_name": "Suggested Name" }
+                    `;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -225,30 +206,33 @@
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
-                    setNewBox(p => ({...p, items: [...new Set([...p.items, ...json.items])]}));
+                    
+                    setNewBox(p => ({
+                        ...p, 
+                        items: [...new Set([...p.items, ...(json.items || [])])],
+                        name: p.name || json.box_name || "" // Auto-name if empty
+                    }));
+
                 } catch (e) { alert("AI Error: " + e.message); }
                 setIsAnalyzing(false);
             };
 
             const saveBox = async () => {
-                if (!user || !newBox.name) return alert("Check info.");
+                // --- BETTER VALIDATION MESSAGES ---
+                if (!user) return alert("Cloud Error: Not logged in. Refresh page.");
+                if (!newBox.name) return alert("Missing Info: Please enter a Box Name.");
+                if (!newBox.items.length && !newBox.images.length) return alert("Empty Box: Add items or a photo.");
+                
                 setIsSaving(true);
-                
-                // 1. Extract Image Data
                 const imageData = newBox.images[0];
-                // 2. Create Lightweight Box Object (No Image)
                 const boxLite = { ...newBox, images: [], createdAt: Date.now() }; 
-                
                 const boxId = `box_${Date.now()}`;
-                const boxPath = `users/${user.uid}/boxes/${boxId}`;
-
+                
                 try {
-                    // Save Lite Data to Main List
-                    await window.fs.setDoc(window.fs.doc(window.db, boxPath), boxLite);
+                    await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, boxId), boxLite);
                     
-                    // Save Heavy Image to Sub-Collection
                     if (imageData) {
-                        await window.fs.setDoc(window.fs.doc(window.db, `${boxPath}/assets/main_image`), { data: imageData });
+                        await window.fs.setDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${boxId}/assets/main_image`), { data: imageData });
                     }
 
                     setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
