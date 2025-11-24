@@ -69,10 +69,13 @@
                 try {
                     const saved = localStorage.getItem('boxsnap_local_data');
                     return saved ? JSON.parse(saved) : [];
-                } catch { return []; }
+                } catch {
+                    return [];
+                }
             });
             
             const [view, setView] = useState('dashboard');
+            
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
             
@@ -83,7 +86,10 @@
             const [searchQuery, setSearchQuery] = useState('');
             const [showSettings, setShowSettings] = useState(false);
 
-            const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
+            // --- API Key State (Managed locally) ---
+            const [apiKey, setApiKey] = useState(() => {
+                return localStorage.getItem('gemini_key') || "";
+            });
             
             const fileRef = useRef(null);
             const qrRef = useRef(null);
@@ -91,34 +97,43 @@
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
             const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
+            // --- LOCAL STORAGE EFFECT ---
             useEffect(() => {
                 localStorage.setItem('boxsnap_local_data', JSON.stringify(boxes));
             }, [boxes]);
 
-            const saveKey = (val) => {
+            // --- Save Key ---
+            const handleSaveKey = (e) => {
+                const val = e.target.value.trim();
                 setApiKey(val);
                 localStorage.setItem('gemini_key', val);
-            };
+            }
 
-            // --- EXPORT / SHARE ---
+            // --- EXPORT WITH "SAVE AS" ---
             const exportData = async () => {
                 const fileName = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
                 const json = JSON.stringify(boxes, null, 2);
-                const file = new File([json], fileName, { type: "application/json" });
 
-                // Try Native Share (Mobile)
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    try {
-                        await navigator.share({
-                            files: [file],
-                            title: 'BoxSnap Backup',
-                            text: 'Save this file to a specific folder on your device.'
+                try {
+                    // 1. Try "Save As" File Picker (Chrome/Edge/Android)
+                    if (window.showSaveFilePicker) {
+                        const handle = await window.showSaveFilePicker({
+                            suggestedName: fileName,
+                            types: [{
+                                description: 'JSON File',
+                                accept: { 'application/json': ['.json'] },
+                            }],
                         });
-                        return; 
-                    } catch (err) { console.log("Share cancelled/failed", err); }
-                }
-                
-                // Fallback Download
+                        const writable = await handle.createWritable();
+                        await writable.write(json);
+                        await writable.close();
+                        alert("Saved successfully!");
+                        return;
+                    }
+                } catch (err) { console.log("File Picker cancelled/failed", err); }
+
+                // 2. Fallback to Download/Share
+                const file = new File([json], fileName, { type: "application/json" });
                 const url = URL.createObjectURL(file);
                 const a = document.createElement('a');
                 a.href = url;
@@ -127,7 +142,7 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                alert("File downloaded. Check your Downloads folder.");
+                alert("File saved to Downloads. Move it to your preferred folder using your File Manager.");
             };
 
             const importData = (e) => {
@@ -150,6 +165,7 @@
             };
 
             // --- HELPERS ---
+            
             const compressImage = (file) => new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
@@ -178,7 +194,9 @@
             };
             
             useEffect(() => {
-                if (selectedBox && view === 'detail') setTimeout(() => generateQRCode(selectedBox.id), 100);
+                if (selectedBox && view === 'detail') {
+                    setTimeout(() => generateQRCode(selectedBox.id), 100);
+                }
             }, [selectedBox, view]);
 
             // --- ACTIONS ---
@@ -208,7 +226,6 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    
                     const prompt = `
                         Analyze this image of packed items. 
                         List every distinct item found. 
@@ -233,7 +250,7 @@
                     }));
 
                 } catch (e) { 
-                    alert("AI Error: " + e.message); 
+                    alert("AI Error: " + (e.message.includes('API key expired') ? "Key Expired/Invalid. Get a new one." : e.message)); 
                 }
                 setIsAnalyzing(false);
             };
@@ -294,8 +311,8 @@
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center">
-                            <Icon d={Icons.share} className="mb-1" /> Save / Share
+                        <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center text-center">
+                            <Icon d={Icons.download} className="mb-1" /> Save / Backup
                         </button>
                         <button onClick={() => importRef.current.click()} className="p-4 border-2 border-green-100 bg-green-50 rounded-xl text-green-700 font-bold flex flex-col items-center">
                             <Icon d={Icons.upload} className="mb-1" /> Restore
@@ -304,7 +321,7 @@
                     </div>
                     
                     <p className="text-xs text-slate-500 p-3 bg-yellow-50 rounded-lg">
-                        ⚠️ <strong>Note:</strong> Click "Save / Share" to choose a folder (Files/Drive) to save your data permanently.
+                        ⚠️ <strong>Tip:</strong> Click "Save / Backup" to pick a folder on your phone.
                     </p>
                 </div>
             );
