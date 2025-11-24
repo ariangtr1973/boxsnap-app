@@ -36,7 +36,9 @@
             package: "M16.5 9.4 7.5 4.21 M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.3 7l8.7 5 8.7-5 M12 22v-10",
             search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35",
             scan: "M3 7V5a2 2 0 0 1 2-2h2 M17 3h2a2 2 0 0 1 2 2v2 M21 17v2a2 2 0 0 1-2 2h-2 M7 21H5a2 2 0 0 1-2-2v-2 M12 12h.01",
-            image: "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M11 14l2 2.4L16 13l3 4H5l4-4 2 1z"
+            image: "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M11 14l2 2.4L16 13l3 4H5l4-4 2 1z",
+            download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
+            upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12"
         };
 
         const QRScanner = ({ onScan, onClose }) => {
@@ -90,19 +92,49 @@
             
             const fileRef = useRef(null);
             const qrRef = useRef(null);
+            const importRef = useRef(null);
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
+            const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
-            // --- LOCAL STORAGE EFFECT ---
+            // --- PERSISTENCE ---
             useEffect(() => {
                 localStorage.setItem('boxsnap_local_data', JSON.stringify(boxes));
             }, [boxes]);
 
-            // --- Save Key ---
-            const handleSaveKey = (e) => {
-                const val = e.target.value.trim();
+            const saveKey = (val) => {
                 setApiKey(val);
                 localStorage.setItem('gemini_key', val);
-            }
+            };
+
+            // --- EXPORT / IMPORT ---
+            const exportData = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(boxes));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "boxsnap_backup.json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            };
+
+            const importData = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const imported = JSON.parse(ev.target.result);
+                        if (Array.isArray(imported)) {
+                            setBoxes(imported);
+                            alert("Success! " + imported.length + " boxes loaded.");
+                            setShowSettings(false);
+                        } else {
+                            alert("Invalid file.");
+                        }
+                    } catch(err) { alert("Error reading file."); }
+                };
+                reader.readAsText(file);
+            };
 
             // --- HELPERS ---
             
@@ -114,7 +146,6 @@
                     img.src = event.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        // UPDATED: Increased for better text readability
                         const MAX_WIDTH = 1024; 
                         const scaleSize = MAX_WIDTH / img.width;
                         canvas.width = MAX_WIDTH;
@@ -125,6 +156,22 @@
                     };
                 };
             });
+
+            const generateQRCode = (boxId) => {
+                 // Simple URL scheme: app-url?box=ID
+                 const url = `${window.location.href.split('?')[0]}?box=${boxId}`;
+                 if(qrRef.current) {
+                    qrRef.current.innerHTML = ""; 
+                    new QRCode(qrRef.current, { text: url, width: 128, height: 128 });
+                 }
+            };
+            
+            useEffect(() => {
+                if (selectedBox && view === 'detail') {
+                    setTimeout(() => generateQRCode(selectedBox.id), 100);
+                }
+            }, [selectedBox, view]);
+
 
             // --- ACTIONS ---
             const handlePhoto = async (e) => {
@@ -155,16 +202,12 @@
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
                     
-                    // UPDATED: Super-Resolution Prompt
+                    // High-Detail prompt: Focus on reading labels and specifics
                     const prompt = `
-                        Analyze this image of items to be packed.
-                        Goal: Create a detailed inventory list.
-                        
-                        1. List every distinct item you can see.
-                        2. CRITICAL: Read all visible text, labels, and packaging. If you see specific dimensions (e.g. '1/4 inch'), quantities (e.g. '500 count'), or brand names, include them in the item name.
-                        3. Suggest a short, descriptive 'box_name' based on the group of items (e.g. 'Plumbing Parts' or 'Summer Clothes').
-                        
-                        Return ONLY valid JSON: { "items": ["Item 1 - Details", "Item 2"], "box_name": "Suggested Name" }
+                        Analyze this image of packed items. 
+                        List every distinct item found. 
+                        IMPORTANT: If text is visible on packaging (brands, dimensions like '1/4 inch', '500 count'), INCLUDE IT in the item name (e.g., 'Screws - 1/4 inch x 3').
+                        Return ONLY a JSON object: { "items": ["Item 1 - details", "Item 2"], "name": "Suggested Box Name" }
                     `;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
@@ -175,12 +218,13 @@
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
                     
+                    // Note: API returns a JSON string, which we parse and then extract the list
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
                     
                     setNewBox(p => ({
                         ...p, 
                         items: [...new Set([...p.items, ...(json.items || [])])],
-                        name: p.name || json.box_name || "" 
+                        name: p.name || json.name || "" 
                     }));
 
                 } catch (e) { 
@@ -243,11 +287,22 @@
                     </div>
                     <div className="mb-6">
                         <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key (Local Storage)</label>
-                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={handleSaveKey} placeholder="AIza..." />
+                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={e => saveKey(e.target.value)} placeholder="AIza..." />
                         <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>
                             {apiKey ? 'Key detected. AI features active.' : 'Required for AI detection.'}
                         </p>
                     </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                        <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center">
+                            <Icon d={Icons.download} className="mb-1" /> Backup
+                        </button>
+                        <button onClick={() => importRef.current.click()} className="p-4 border-2 border-green-100 bg-green-50 rounded-xl text-green-700 font-bold flex flex-col items-center">
+                            <Icon d={Icons.upload} className="mb-1" /> Restore
+                        </button>
+                        <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
+                    </div>
+                    
                     <p className="text-xs text-slate-500 p-3 bg-yellow-50 rounded-lg">
                         ⚠️ **Warning:** This app saves data only to your browser. Clearing browser history will **delete all your boxes**.
                     </p>
@@ -264,7 +319,7 @@
                     <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
                     <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
                         {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
-                        <span className="relative font-bold text-sm mt-1">Tap to Add Photo</span>
+                        <span className="relative font-bold text-sm mt-1">Tap to Add Photo (Hold for text)</span>
                     </div>
                     
                     <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
