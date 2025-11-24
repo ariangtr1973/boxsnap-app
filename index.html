@@ -3,67 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap Cloud</title>
+    <title>BoxSnap AI Local</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
-    <!-- FIREBASE SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-
-        // --- ✅ PASTE YOUR NEW KEY BELOW ---
-        window.firebaseConfig = {
-            apiKey: "AIzaSyAsAhVoJdjvgcoajCFQCuRSIviKHl8SdsY", 
-            authDomain: "boxsnap-b5d3d.firebaseapp.com",
-            projectId: "boxsnap-b5d3d",
-            storageBucket: "boxsnap-b5d3d.firebasestorage.app",
-            messagingSenderId: "792190274154",
-            appId: "1:792190274154:web:8f251191a14387b2365813"
-        };
-
-        const APP_ID = "boxsnap-v1";
-
-        window.boxsnap = { status: 'initializing', error: null };
-
-        // Force Clear Old Stored Keys
-        try { localStorage.removeItem('gemini_key'); } catch(e) {}
-
-        if (window.firebaseConfig.apiKey && window.firebaseConfig.apiKey !== "PASTE_NEW_KEY_HERE") {
-            try {
-                const app = initializeApp(window.firebaseConfig);
-                const auth = getAuth(app);
-                const db = getFirestore(app);
-                
-                window.db = db;
-                window.auth = auth;
-                // EXPORT SIGN IN FOR AUTO-RECONNECT
-                window.signInAnonymously = signInAnonymously;
-                
-                window.fs = { collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, getDoc };
-                window.appId = APP_ID;
-                
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        window.currentUser = user;
-                        if(window.initListener) window.initListener(user);
-                    } else {
-                        signInAnonymously(auth).catch(e => console.error(e));
-                    }
-                });
-                window.boxsnap.status = 'ready';
-            } catch (e) {
-                window.boxsnap.error = e.message;
-            }
-        } else {
-            window.boxsnap.status = 'missing_config';
-        }
-    </script>
-
     <style>
         body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
@@ -114,47 +61,51 @@
         };
 
         function App() {
-            const [boxes, setBoxes] = useState([]);
-            const [user, setUser] = useState(window.currentUser || null);
-            const [view, setView] = useState('dashboard');
-            
-            // --- API KEY LOGIC ---
-            const [apiKey, setApiKey] = useState(() => {
-                if (window.firebaseConfig && window.firebaseConfig.apiKey) {
-                    return window.firebaseConfig.apiKey;
+            // Use localStorage for persistence instead of Firebase
+            const [boxes, setBoxes] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('boxsnap_local_data');
+                    return saved ? JSON.parse(saved) : [];
+                } catch {
+                    return [];
                 }
-                return localStorage.getItem('gemini_key') || "";
             });
+            
+            const [view, setView] = useState('dashboard');
             
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
-            const [isAnalyzing, setIsAnalyzing] = useState(false);
-            const [isSaving, setIsSaving] = useState(false);
             
             const [selectedBox, setSelectedBox] = useState(null);
             const [selectedBoxImage, setSelectedBoxImage] = useState(null);
-            const [isLoadingImage, setIsLoadingImage] = useState(false);
-
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
             const [showScanner, setShowScanner] = useState(false);
             const [searchQuery, setSearchQuery] = useState('');
+            const [showSettings, setShowSettings] = useState(false);
+
+            // --- API Key State (Managed locally) ---
+            const [apiKey, setApiKey] = useState(() => {
+                return localStorage.getItem('gemini_key') || "";
+            });
+            
             const fileRef = useRef(null);
+            const qrRef = useRef(null);
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
 
-            // --- FIREBASE SYNC (LIST ONLY) ---
+            // --- LOCAL STORAGE EFFECT ---
             useEffect(() => {
-                if (!window.auth) return;
-                window.initListener = (u) => {
-                    setUser(u);
-                    const q = window.fs.query(window.fs.collection(window.db, `users/${u.uid}/boxes`));
-                    window.fs.onSnapshot(q, (snap) => {
-                        const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                        setBoxes(list.sort((a,b) => b.createdAt - a.createdAt));
-                    });
-                };
-                if (window.currentUser) window.initListener(window.currentUser);
-            }, []);
+                localStorage.setItem('boxsnap_local_data', JSON.stringify(boxes));
+            }, [boxes]);
+
+            // --- Save Key ---
+            const handleSaveKey = (e) => {
+                const val = e.target.value.trim();
+                setApiKey(val);
+                localStorage.setItem('gemini_key', val);
+            }
 
             // --- HELPERS ---
+            
             const compressImage = (file) => new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
@@ -174,6 +125,26 @@
                 };
             });
 
+            const generateQRCode = (boxId) => {
+                 // Simple URL scheme: app-url?box=ID
+                 const url = `${window.location.href.split('?')[0]}?box=${boxId}`;
+                 if(qrRef.current) {
+                    qrRef.current.innerHTML = ""; // Clear previous
+                    new QRCode(qrRef.current, {
+                        text: url,
+                        width: 128,
+                        height: 128
+                    });
+                 }
+            };
+            
+            useEffect(() => {
+                if (selectedBox && view === 'detail') {
+                    setTimeout(() => generateQRCode(selectedBox.id), 100);
+                }
+            }, [selectedBox, view]);
+
+
             // --- ACTIONS ---
             const handlePhoto = async (e) => {
                 if(e.target.files[0]) {
@@ -184,24 +155,32 @@
                 }
             };
 
-            const openBox = async (box) => {
+            const openBox = (box) => {
                 setSelectedBox(box);
-                setSelectedBoxImage(null);
-                setIsLoadingImage(true);
-                try {
-                    const imgDoc = await window.fs.getDoc(window.fs.doc(window.db, `users/${user.uid}/boxes/${box.id}/assets/main_image`));
-                    if (imgDoc.exists()) setSelectedBoxImage(imgDoc.data().data);
-                } catch (e) {}
-                setIsLoadingImage(false);
+                // In Local Storage mode, the image is stored in the main object
+                setSelectedBoxImage(box.images[0] || null); 
+                setView('detail');
             };
-
+            
             const analyze = async () => {
+                if (!apiKey) {
+                    alert("Please enter your Gemini API Key in Settings first.");
+                    setShowSettings(true);
+                    return;
+                }
                 if (!newBox.images[0]) return alert("Add photo first.");
                 
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    const prompt = `Analyze image. List items. Include text/brands. JSON ONLY: { "items": ["Item 1", "Item 2"] }`;
+                    
+                    // High-Detail prompt: Focus on reading labels and specifics
+                    const prompt = `
+                        Analyze this image of packed items. 
+                        List every distinct item found. 
+                        IMPORTANT: If text is visible on packaging (brands, dimensions like '1/4 inch', '500 count'), INCLUDE IT in the item name (e.g., 'Screws - 1/4 inch x 3').
+                        Return ONLY a JSON object: { "items": ["Item 1 - details", "Item 2"] }
+                    `;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -210,6 +189,8 @@
                     
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
+                    
+                    // Note: API returns a JSON string, which we parse and then extract the list
                     const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
                     
                     setNewBox(p => ({
@@ -218,65 +199,48 @@
                         name: p.name || json.box_name || "" 
                     }));
 
-                } catch (e) { alert("AI Error: " + e.message); }
+                } catch (e) { 
+                    alert("AI Error: " + (e.message.includes('API key expired') ? "Key Expired/Invalid. Get a new one." : e.message)); 
+                }
                 setIsAnalyzing(false);
             };
 
-            const saveBox = async () => {
-                setIsSaving(true);
-                
-                let activeUser = user;
-                
-                // ⚡️ AUTO-RECONNECT FIX ⚡️
-                // If user is null, try to sign in again immediately
-                if (!activeUser) {
-                    try {
-                        console.log("Attempting auto-reconnect...");
-                        const cred = await window.signInAnonymously(window.auth);
-                        activeUser = cred.user;
-                        setUser(activeUser); // Update React state
-                    } catch (e) {
-                        setIsSaving(false);
-                        return alert("Network Error: Could not connect to cloud. Check internet.");
-                    }
-                }
 
+            const saveBox = () => {
                 // Validation
-                if (!newBox.name) { setIsSaving(false); return alert("Please enter a Box Name."); }
-                if (!newBox.items.length && !newBox.images.length) { setIsSaving(false); return alert("Box is empty!"); }
+                if (!newBox.name) return alert("Error: Please enter a 'Box Name'.");
+                if (!newBox.items.length && !newBox.images.length) return alert("Error: Box is empty! Add items or a photo.");
+                
+                const newId = `box_${Date.now()}`;
+                const boxToSave = { ...newBox, id: newId, createdAt: Date.now() };
 
-                try {
-                    const imageData = newBox.images[0];
-                    const boxLite = { ...newBox, images: [], createdAt: Date.now() }; 
-                    const boxId = `box_${Date.now()}`;
-                    
-                    // 1. Save Lite Data
-                    await window.fs.setDoc(window.fs.doc(window.db, `users/${activeUser.uid}/boxes`, boxId), boxLite);
-                    
-                    // 2. Save Heavy Image
-                    if (imageData) {
-                        await window.fs.setDoc(window.fs.doc(window.db, `users/${activeUser.uid}/boxes/${boxId}/assets/main_image`), { data: imageData });
-                    }
-
-                    setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
-                    setRawFile(null);
-                    setIsSaving(false);
-                    setView('dashboard');
-                } catch (e) { 
-                    setIsSaving(false); 
-                    alert("Save Failed: " + e.message); 
-                }
+                // Add to state
+                setBoxes(prev => [boxToSave, ...prev]);
+                
+                // Reset form
+                setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
+                setRawFile(null);
+                
+                alert("Box saved locally!");
+                setView('dashboard');
             };
 
-            const deleteBox = async (id) => {
-                if(confirm("Delete?")) await window.fs.deleteDoc(window.fs.doc(window.db, `users/${user.uid}/boxes`, id));
+            const deleteBox = (id) => {
+                if(confirm("Are you sure you want to delete this box?")) {
+                    setBoxes(prev => prev.filter(b => b.id !== id));
+                    if (selectedBox && selectedBox.id === id) setSelectedBox(null);
+                }
             };
 
             const handleScan = (txt) => {
                 setShowScanner(false);
-                const boxId = txt.includes('?id=') ? txt.split('?id=')[1] : txt;
+                const boxId = txt.includes('?box=') ? txt.split('?box=')[1] : txt;
                 const found = boxes.find(b => b.id === boxId);
-                found ? openBox(found) : alert("Not found.");
+                if (found) {
+                    openBox(found);
+                } else {
+                    alert(`Box ID "${boxId}" not found in local inventory.`);
+                }
             };
 
             const filteredBoxes = boxes.filter(b => {
@@ -285,6 +249,27 @@
             });
 
             if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
+
+            // --- VIEW: SETTINGS ---
+             if (showSettings) return (
+                <div className="p-6 bg-white min-h-screen">
+                    <div className="flex justify-between items-center mb-6">
+                         <h2 className="text-xl font-bold text-slate-900">Settings</h2>
+                         <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} /></button>
+                    </div>
+                    <div className="mb-6">
+                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key (Local Storage)</label>
+                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={handleSaveKey} placeholder="AIza..." />
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>
+                            {apiKey ? 'Key detected. AI features active.' : 'Required for AI detection.'}
+                        </p>
+                    </div>
+                    <p className="text-xs text-slate-500 p-3 bg-yellow-50 rounded-lg">
+                        ⚠️ **Warning:** This app saves data only to your browser. Clearing browser history will **delete all your boxes**.
+                    </p>
+                </div>
+            );
+
 
             // --- VIEW: ADD ---
             if (view === 'add') return (
@@ -297,9 +282,11 @@
                         {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
                         <span className="relative font-bold text-sm mt-1">Add Photo</span>
                     </div>
-                    <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 disabled:bg-gray-200 disabled:text-gray-500">
-                        {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details</>}
+                    
+                    <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
+                        {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
                     </button>
+                    
                     <div className="space-y-4 flex-1">
                         <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
                         
@@ -315,18 +302,19 @@
                         </div>
                         <select className="w-full p-3 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
                     </div>
-                    <button onClick={saveBox} disabled={isSaving} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2 disabled:bg-green-800">{isSaving ? "Saving..." : "Save Box"}</button>
+                    <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2">Save Box</button>
                 </div>
             );
 
             // --- VIEW: DETAIL ---
-            if (selectedBox) return (
+            if (view === 'detail' && selectedBox) return (
                 <div className="p-6 bg-white min-h-screen animate-in">
                     <div className="flex justify-between items-center mb-4">
-                        <button onClick={() => setSelectedBox(null)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
+                        <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
+                        <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
                     </div>
                     <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300">
-                        {isLoadingImage ? "Loading Image..." : (selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />)}
+                        {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
                     </div>
                     <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
                     <p className="text-slate-500 mb-6">{selectedBox.room}</p>
@@ -334,7 +322,9 @@
                         {selectedBox.items.map((item, i) => <span key={i} className="bg-white border px-2 py-1 rounded text-sm shadow-sm">{item}</span>)}
                     </div>
                     <div className="text-center border-t pt-6">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + window.location.pathname + "?id=" + selectedBox.id)}`} className="mx-auto border-4 border-black p-2 rounded-lg mb-4" />
+                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center">
+                             <span className="text-sm text-gray-500">QR Code</span>
+                        </div>
                         <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
                     </div>
                 </div>
@@ -344,8 +334,11 @@
             return (
                 <div className="p-5 bg-slate-50 min-h-screen pb-32">
                     <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap</h1>
-                        <button onClick={() => setShowScanner(true)} className="p-3 bg-slate-900 text-white rounded-full shadow-lg flex items-center gap-2 text-xs font-bold"><Icon d={Icons.scan} className="w-4 h-4" /> Scan</button>
+                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap Offline</h1>
+                        <div className="flex gap-2">
+                            <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-900 text-white rounded-full shadow-lg"><Icon d={Icons.settings} className="w-5 h-5" /></button>
+                            <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
+                        </div>
                     </div>
 
                     <div className="relative mb-4">
@@ -354,9 +347,9 @@
                     </div>
 
                     <div className="space-y-3">
-                        {filteredBoxes.map(box => {
+                        {boxes.map(box => {
                             return (
-                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500">
+                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 active:scale-[.98] transition-transform">
                                     <div className="flex justify-between items-start">
                                         <h3 className="font-bold text-lg text-slate-900">{box.name}</h3>
                                         <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
