@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Chrome Stable)</title>
+    <title>BoxSnap V2 (Touch Fixed)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -94,7 +94,6 @@
 
                 useEffect(() => {
                     if (imgRef.current && window.Panzoom) {
-                        // FIX: Remove 'contain' to allow free movement regardless of orientation
                         panzoomRef.current = window.Panzoom(imgRef.current, { 
                             maxScale: 5, 
                             minScale: 0.5, 
@@ -112,8 +111,9 @@
                             <button onClick={resetZoom} className="pointer-events-auto bg-gray-800 text-white px-4 py-2 rounded-full opacity-80 shadow-lg text-sm font-bold">Reset</button>
                             <button onClick={onClose} className="pointer-events-auto bg-gray-800 text-white p-3 rounded-full opacity-80 shadow-lg"><Icon d={Icons.close} className="w-6 h-6" /></button>
                         </div>
+                        {/* THE FIX: touchAction: 'none' added here */}
                         <div className="w-full h-full flex items-center justify-center p-4" onClick={onClose}>
-                            <img ref={imgRef} src={src} className="max-w-full max-h-full object-contain" onClick={(e) => e.stopPropagation()} onDoubleClick={resetZoom} />
+                            <img ref={imgRef} src={src} className="max-w-full max-h-full object-contain" style={{ touchAction: 'none' }} onClick={(e) => e.stopPropagation()} onDoubleClick={resetZoom} />
                         </div>
                     </div>
                 );
