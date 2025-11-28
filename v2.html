@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Test)</title>
+    <title>BoxSnap V2 (Production)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -41,7 +41,8 @@
             download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
             upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12",
             save: "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z",
-            close: "M18 6L6 18M6 6l12 12"
+            close: "M18 6L6 18M6 6l12 12",
+            zoom: "M15 15l6 6m-11-4a7 7 0 110-14 7 7 0 010 14z"
         };
 
         const QRScanner = ({ onScan, onClose }) => {
@@ -99,7 +100,8 @@
             const [showScanner, setShowScanner] = useState(false);
             const [searchQuery, setSearchQuery] = useState('');
             const [showSettings, setShowSettings] = useState(false);
-            const [showFullImage, setShowFullImage] = useState(false); // NEW STATE
+            const [showFullImage, setShowFullImage] = useState(false); 
+            const [previewImage, setPreviewImage] = useState(null); // For Add View Zoom
             
             const [tempKey, setTempKey] = useState("");
 
@@ -214,6 +216,7 @@
                 setView('detail');
             };
             
+            // --- UPDATED AI ANALYSIS (AGGRESSIVE TEXT READING) ---
             const analyze = async () => {
                 if (!apiKey) {
                     alert("Please enter your Gemini API Key in Settings first.");
@@ -225,7 +228,11 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    const prompt = `Analyze this image of packed items. List every distinct item found. IMPORTANT: If text is visible on packaging (brands, dimensions like '1/4 inch', '500 count'), INCLUDE IT in the item name. Return ONLY a JSON object: { "items": ["Item 1 - details", "Item 2"], "name": "Suggested Box Name" }`;
+                    const prompt = `Analyze this image of items being packed. Your absolute priority is to read all visible text, especially handwritten notes on tape and printed labels on boxes/cases. 
+                    1. Containers: If a box or case has text describing its contents (e.g., handwritten 'Inside this box: Metric Forstner Bits' or a label 'Standard Setup Blocks'), list the *contents* written on the label as the item name. Do not list generic terms like 'small cardboard box'.
+                    2. Loose Items: Identify loose items concisely by type and brand/text if visible (e.g., 'Intoy Folding Rule', 'Neitra Caliper', 'Milwaukee Screwdriver'). 
+                    3. Be Concise: Keep item names short and accurate based ONLY on visible evidence.
+                    Return ONLY a JSON object: { "items": ["Concise Item 1", "Concise Item 2 (from label)"], "name": "Suggested general box name" }`;
                     
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -283,8 +290,9 @@
             if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
             
             // Render the Full Image Modal if state is true
-            if (showFullImage && selectedBoxImage) {
-                return <ImageModal src={selectedBoxImage} onClose={() => setShowFullImage(false)} />;
+            // We reuse this for both 'detail' view and 'add' view zooming
+            if (showFullImage) {
+                return <ImageModal src={previewImage} onClose={() => { setShowFullImage(false); setPreviewImage(null); }} />;
             }
 
             // --- VIEW: SETTINGS ---
@@ -324,9 +332,25 @@
                         <span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box
                     </div>
                     <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
-                    <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden cursor-pointer">
-                        {newBox.images[0] ? <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80"/> : <Icon d={Icons.camera} className="w-8 h-8"/>}
-                        <span className="relative font-bold text-sm mt-1">Tap to Add Photo</span>
+                    
+                    {/* PHOTO AREA WITH SPLIT ACTIONS */}
+                    <div className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden">
+                        {newBox.images[0] ? (
+                            <>
+                                <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80" onClick={() => fileRef.current.click()}/>
+                                {/* Zoom Button Overlay */}
+                                <button onClick={(e) => { e.stopPropagation(); setPreviewImage(newBox.images[0]); setShowFullImage(true); }} className="absolute bottom-2 right-2 p-2 bg-black bg-opacity-60 rounded-full text-white z-10">
+                                    <Icon d={Icons.zoom} className="w-5 h-5"/>
+                                </button>
+                                {/* Center 'Retake' Text */}
+                                <span className="relative font-bold text-sm mt-1 z-0 pointer-events-none text-black bg-white bg-opacity-50 px-2 rounded">Tap to Retake</span>
+                            </>
+                        ) : (
+                            <div onClick={() => fileRef.current.click()} className="w-full h-full flex flex-col items-center justify-center cursor-pointer">
+                                <Icon d={Icons.camera} className="w-8 h-8"/>
+                                <span className="font-bold text-sm mt-1">Tap to Add Photo</span>
+                            </div>
+                        )}
                     </div>
                     
                     <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
@@ -360,10 +384,9 @@
                         <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
                     </div>
                     
-                    {/* UPDATED: IMAGE IS NOW CLICKABLE */}
-                    <div onClick={() => setShowFullImage(true)} className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300 relative cursor-pointer">
+                    <div onClick={() => { setPreviewImage(selectedBoxImage); setShowFullImage(true); }} className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300 relative cursor-pointer">
                          {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
-                         {selectedBoxImage && <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">Tap to zoom</div>}
+                         {selectedBoxImage && <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full flex gap-1 items-center"><Icon d={Icons.zoom} className="w-3 h-3"/> Zoom</div>}
                     </div>
                     
                     <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
