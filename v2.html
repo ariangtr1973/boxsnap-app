@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap AI Local</title>
+    <title>BoxSnap V2 (Test)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -14,8 +14,6 @@
     <style>
         body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         /* Card hover effect */
         .box-card { transition: transform 0.1s ease-in-out; }
         .box-card:active { transform: scale(0.98); }
@@ -31,7 +29,7 @@
         const Icons = {
             arrowLeft: "m12 19-7-7 7-7 M19 12H5",
             camera: "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z M12 13m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
-            settings: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
+            settings: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
             check: "M20 6 9 17l-5-5",
             sparkles: "m12 3-1.9 5.8a2 2 0 0 1-1.2 1.2L3 12l5.8 1.9a2 2 0 0 1 1.2 1.2L12 21l1.9-5.8a2 2 0 0 1 1.2-1.2L21 12l-5.8-1.9a2 2 0 0 1-1.2-1.2L12 3z",
             trash: "M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
@@ -42,7 +40,8 @@
             image: "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M11 14l2 2.4L16 13l3 4H5l4-4 2 1z",
             download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
             upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12",
-            share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13"
+            save: "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z",
+            close: "M18 6L6 18M6 6l12 12"
         };
 
         const QRScanner = ({ onScan, onClose }) => {
@@ -66,6 +65,19 @@
             );
         };
 
+        // --- NEW COMPONENT: FULL IMAGE MODAL ---
+        const ImageModal = ({ src, onClose }) => {
+            if (!src) return null;
+            return (
+                <div onClick={onClose} className="fixed inset-0 z-[60] bg-black flex items-center justify-center p-2 cursor-pointer">
+                    <button className="absolute top-4 right-4 text-white p-2 bg-gray-800 rounded-full opacity-70">
+                        <Icon d={Icons.close} />
+                    </button>
+                    <img src={src} className="max-w-full max-h-full object-contain" />
+                </div>
+            );
+        };
+
         function App() {
             // --- LOCAL STORAGE INIT ---
             const [boxes, setBoxes] = useState(() => {
@@ -75,6 +87,9 @@
                 } catch { return []; }
             });
             
+            const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
+            
+            // UI State
             const [view, setView] = useState('dashboard');
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
@@ -84,43 +99,43 @@
             const [showScanner, setShowScanner] = useState(false);
             const [searchQuery, setSearchQuery] = useState('');
             const [showSettings, setShowSettings] = useState(false);
-            const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
+            const [showFullImage, setShowFullImage] = useState(false); // NEW STATE
+            
+            const [tempKey, setTempKey] = useState("");
 
             const fileRef = useRef(null);
             const qrRef = useRef(null);
             const importRef = useRef(null);
             const ROOMS = ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
-            const STATUS_COLORS = { 'Packing': 'bg-gray-100 text-gray-600', 'Ready': 'bg-blue-100 text-blue-700', 'Loaded': 'bg-purple-100 text-purple-700', 'Unpacked': 'bg-green-100 text-green-700' };
 
             useEffect(() => {
                 localStorage.setItem('boxsnap_local_data', JSON.stringify(boxes));
             }, [boxes]);
 
-            const saveKey = (e) => {
-                const val = e.target.value.trim();
+            const saveKey = () => {
+                const val = tempKey.trim();
+                if (!val) return alert("Please enter a key first.");
                 setApiKey(val);
                 localStorage.setItem('gemini_key', val);
+                alert("Key Saved to Device!");
             };
+
+            useEffect(() => {
+                if (showSettings) setTempKey(apiKey);
+            }, [showSettings, apiKey]);
 
             // --- EXPORT / SHARE ---
             const exportData = async () => {
                 const fileName = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
                 const json = JSON.stringify(boxes, null, 2);
-
-                // Try Native Share (Mobile)
                 try {
                     const file = new File([json], fileName, { type: "application/json" });
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: 'BoxSnap Backup',
-                            text: 'Save this file to keep your inventory safe.'
-                        });
+                        await navigator.share({ files: [file], title: 'BoxSnap Backup', text: 'Save this file to keep your inventory safe.' });
                         return; 
                     }
-                } catch (err) { console.log("Share cancelled/failed", err); }
-
-                // Fallback Download
+                } catch (err) { console.log("Share failed", err); }
+                
                 const blob = new Blob([json], {type: "application/json"});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -129,8 +144,7 @@
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                alert("File saved to Downloads folder.");
+                alert("File saved to Downloads.");
             };
 
             const importData = (e) => {
@@ -146,9 +160,7 @@
                                 alert("Success! Boxes loaded.");
                                 setShowSettings(false);
                             }
-                        } else {
-                            alert("Invalid file format.");
-                        }
+                        } else alert("Invalid file format.");
                     } catch(err) { alert("Error reading file."); }
                 };
                 reader.readAsText(file);
@@ -258,24 +270,22 @@
                 setShowScanner(false);
                 const boxId = txt.includes('?box=') ? txt.split('?box=')[1] : txt;
                 const found = boxes.find(b => b.id === boxId);
-                if (found) {
-                    openBox(found);
-                } else {
-                    alert(`Box ID "${boxId}" not found in local inventory.`);
-                }
+                if (found) { openBox(found); } else { alert(`Box ID "${boxId}" not found in local inventory.`); }
             };
 
             const filteredBoxes = boxes.filter(b => {
                 const q = searchQuery.toLowerCase();
-                // Fix for search finding the box
                 if (!q) return true;
-                const nameMatch = b.name.toLowerCase().includes(q);
-                const itemMatch = b.items.some(i => i.toLowerCase().includes(q));
-                const roomMatch = b.room.toLowerCase().includes(q);
-                return nameMatch || itemMatch || roomMatch;
+                return b.name.toLowerCase().includes(q) || b.items.some(i => i.toLowerCase().includes(q)) || b.room.toLowerCase().includes(q);
             });
 
+            // --- CONDITIONAL RENDERS ---
             if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
+            
+            // Render the Full Image Modal if state is true
+            if (showFullImage && selectedBoxImage) {
+                return <ImageModal src={selectedBoxImage} onClose={() => setShowFullImage(false)} />;
+            }
 
             // --- VIEW: SETTINGS ---
              if (showSettings) return (
@@ -285,29 +295,27 @@
                          <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} /></button>
                     </div>
                     <div className="mb-6">
-                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key (Local Storage)</label>
-                        <input className="w-full p-3 border rounded-xl font-mono text-sm" type="password" value={apiKey} onChange={saveKey} placeholder="AIza..." />
-                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600' : 'text-red-500'}`}>
-                            {apiKey ? 'Key detected. AI features active.' : 'Required for AI detection.'}
+                        <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
+                        <div className="flex gap-2">
+                            <input className="flex-1 p-3 border rounded-xl font-mono text-sm" type="password" value={tempKey} onChange={(e) => setTempKey(e.target.value)} placeholder="AIza..." />
+                            <button onClick={saveKey} className="bg-green-600 text-white px-4 rounded-xl font-bold text-sm">Save</button>
+                        </div>
+                        <p className={`text-xs mt-2 ${apiKey ? 'text-green-600 font-bold' : 'text-red-500'}`}>
+                            {apiKey ? '✓ Key currently active' : '⚠ No key saved'}
                         </p>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mb-6">
                         <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center text-center">
-                            <Icon d={Icons.download} className="mb-1" /> Save / Backup
+                            <Icon d={Icons.download} className="mb-1" /> Backup Data
                         </button>
                         <button onClick={() => importRef.current.click()} className="p-4 border-2 border-green-100 bg-green-50 rounded-xl text-green-700 font-bold flex flex-col items-center">
-                            <Icon d={Icons.upload} className="mb-1" /> Restore
+                            <Icon d={Icons.upload} className="mb-1" /> Restore Data
                         </button>
                         <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
                     </div>
-                    
-                    <p className="text-xs text-slate-500 p-3 bg-yellow-50 rounded-lg">
-                        ⚠️ <strong>Tip:</strong> Use "Save / Backup" to save your data to a specific folder on your phone.
-                    </p>
                 </div>
             );
-
 
             // --- VIEW: ADD ---
             if (view === 'add') return (
@@ -351,9 +359,13 @@
                         <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
                         <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
                     </div>
-                    <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300">
-                        {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
+                    
+                    {/* UPDATED: IMAGE IS NOW CLICKABLE */}
+                    <div onClick={() => setShowFullImage(true)} className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300 relative cursor-pointer">
+                         {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
+                         {selectedBoxImage && <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">Tap to zoom</div>}
                     </div>
+                    
                     <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
                     <p className="text-slate-500 mb-6">{selectedBox.room}</p>
                     <div className="bg-slate-50 p-4 rounded-xl border mb-6 flex flex-wrap gap-2">
@@ -370,14 +382,10 @@
             return (
                 <div className="p-5 bg-slate-50 min-h-screen pb-32">
                     <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap Offline</h1>
+                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap V2</h1>
                         <div className="flex gap-2">
-                            {/* Main Action Buttons */}
-                            <button onClick={exportData} className="p-3 bg-blue-100 text-blue-700 rounded-full" title="Backup"><Icon d={Icons.download} className="w-5 h-5" /></button>
-                            <button onClick={() => importRef.current.click()} className="p-3 bg-green-100 text-green-700 rounded-full" title="Restore"><Icon d={Icons.upload} className="w-5 h-5" /></button>
                             <button onClick={() => setShowSettings(true)} className="p-3 bg-white text-slate-700 shadow rounded-full"><Icon d={Icons.settings} className="w-5 h-5" /></button>
                             <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
-                            <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
                         </div>
                     </div>
 
@@ -387,22 +395,20 @@
                     </div>
 
                     <div className="space-y-3">
-                        {filteredBoxes.map(box => {
-                            return (
-                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 box-card cursor-pointer">
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="font-bold text-lg text-slate-900">{box.name}</h3>
-                                        <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {box.items.slice(0, 3).map((item, i) => (
-                                            <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>
-                                        ))}
-                                        {box.items.length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
-                                    </div>
+                        {filteredBoxes.map(box => (
+                            <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 box-card cursor-pointer">
+                                <div className="flex justify-between items-start">
+                                    <h3 className="font-bold text-lg text-slate-900">{box.name}</h3>
+                                    <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
                                 </div>
-                            );
-                        })}
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                    {box.items.slice(0, 3).map((item, i) => (
+                                        <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>
+                                    ))}
+                                    {box.items.length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                     
                     <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
