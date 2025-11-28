@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Touch Fixed)</title>
+    <title>BoxSnap V2 (TapZoom + Smart AI)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -22,13 +22,14 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
     
     <style>
         body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
         .box-card { transition: transform 0.1s ease-in-out; }
         .box-card:active { transform: scale(0.98); }
+        /* Prevent standard browser zoom behavior on the modal */
+        .modal-prevent-touch { touch-action: none; }
     </style>
 </head>
 <body>
@@ -38,7 +39,6 @@
         <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #64748b;">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
             <h2 style="margin-top: 15px; font-weight: bold; font-size: 1.2rem;">Loading BoxSnap...</h2>
-            <p style="font-size: 0.9rem; margin-top: 5px;">If stuck, check internet connection.</p>
         </div>
     </div>
 
@@ -66,16 +66,80 @@
                 zoom: "M15 15l6 6m-11-4a7 7 0 110-14 7 7 0 010 14z"
             };
 
-            // --- COMPONENTS ---
+            // --- COMPONENT: TAP-TO-ZOOM MODAL (Custom Implementation) ---
+            const ImageModal = ({ src, onClose }) => {
+                const [zoomed, setZoomed] = useState(false);
+                const [position, setPosition] = useState({ x: 0, y: 0 });
+                const [start, setStart] = useState({ x: 0, y: 0 });
+                const [isDragging, setIsDragging] = useState(false);
+
+                const handleTouchStart = (e) => {
+                    if (!zoomed) return;
+                    setIsDragging(true);
+                    const touch = e.touches[0];
+                    setStart({ x: touch.clientX - position.x, y: touch.clientY - position.y });
+                };
+
+                const handleTouchMove = (e) => {
+                    if (!isDragging || !zoomed) return;
+                    e.preventDefault(); // Stop screen from scrolling
+                    const touch = e.touches[0];
+                    setPosition({ x: touch.clientX - start.x, y: touch.clientY - start.y });
+                };
+
+                const handleTouchEnd = () => setIsDragging(false);
+
+                const toggleZoom = (e) => {
+                    e.stopPropagation();
+                    if (zoomed) {
+                        setZoomed(false);
+                        setPosition({ x: 0, y: 0 });
+                    } else {
+                        setZoomed(true);
+                    }
+                };
+
+                return (
+                    <div className="fixed inset-0 z-[9999] bg-black bg-opacity-95 flex items-center justify-center overflow-hidden modal-prevent-touch">
+                        <button onClick={onClose} className="absolute top-4 right-4 z-50 text-white p-3 bg-gray-800 rounded-full opacity-80 shadow-lg">
+                            <Icon d={Icons.close} className="w-6 h-6" />
+                        </button>
+                        
+                        <div 
+                            className="w-full h-full flex items-center justify-center overflow-hidden relative"
+                            onClick={onClose} // Close if clicking black area
+                        >
+                            <img 
+                                src={src} 
+                                style={{ 
+                                    transform: `scale(${zoomed ? 2.5 : 1}) translate(${position.x / 2.5}px, ${position.y / 2.5}px)`,
+                                    transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+                                    cursor: zoomed ? 'grab' : 'zoom-in',
+                                    touchAction: 'none'
+                                }}
+                                className="max-w-full max-h-full object-contain"
+                                onClick={toggleZoom}
+                                onTouchStart={handleTouchStart}
+                                onTouchMove={handleTouchMove}
+                                onTouchEnd={handleTouchEnd}
+                            />
+                        </div>
+                        <div className="absolute bottom-10 left-0 right-0 text-center pointer-events-none">
+                            <span className="bg-black bg-opacity-50 text-white px-4 py-2 rounded-full text-sm font-bold">
+                                {zoomed ? "Drag to Pan • Tap to Zoom Out" : "Tap Image to Zoom In"}
+                            </span>
+                        </div>
+                    </div>
+                );
+            };
+
             const QRScanner = ({ onScan, onClose }) => {
                 useEffect(() => {
                     if (window.Html5QrcodeScanner) {
                         const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
                         scanner.render((txt) => { scanner.clear(); onScan(txt); }, console.warn);
                         return () => { try { scanner.clear(); } catch(e){} };
-                    } else {
-                        alert("Scanner library failed to load. Check internet.");
-                    }
+                    } else { alert("Scanner library failed to load. Check internet."); }
                 }, []);
                 return (
                     <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center p-4">
@@ -88,44 +152,12 @@
                 );
             };
 
-            const ImageModal = ({ src, onClose }) => {
-                const imgRef = useRef(null);
-                const panzoomRef = useRef(null);
-
-                useEffect(() => {
-                    if (imgRef.current && window.Panzoom) {
-                        panzoomRef.current = window.Panzoom(imgRef.current, { 
-                            maxScale: 5, 
-                            minScale: 0.5, 
-                            startScale: 1
-                        });
-                    }
-                }, []);
-
-                const resetZoom = (e) => { e.stopPropagation(); if(panzoomRef.current) panzoomRef.current.reset(); };
-
-                if (!src) return null;
-                return (
-                    <div className="fixed inset-0 z-[9999] bg-black bg-opacity-95 flex items-center justify-center overflow-hidden">
-                        <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-50 pointer-events-none">
-                            <button onClick={resetZoom} className="pointer-events-auto bg-gray-800 text-white px-4 py-2 rounded-full opacity-80 shadow-lg text-sm font-bold">Reset</button>
-                            <button onClick={onClose} className="pointer-events-auto bg-gray-800 text-white p-3 rounded-full opacity-80 shadow-lg"><Icon d={Icons.close} className="w-6 h-6" /></button>
-                        </div>
-                        {/* THE FIX: touchAction: 'none' added here */}
-                        <div className="w-full h-full flex items-center justify-center p-4" onClick={onClose}>
-                            <img ref={imgRef} src={src} className="max-w-full max-h-full object-contain" style={{ touchAction: 'none' }} onClick={(e) => e.stopPropagation()} onDoubleClick={resetZoom} />
-                        </div>
-                    </div>
-                );
-            };
-
             // --- MAIN APP ---
             function App() {
                 const [boxes, setBoxes] = useState(() => {
                     try {
                         const saved = localStorage.getItem('boxsnap_local_data');
-                        const parsed = saved ? JSON.parse(saved) : [];
-                        return Array.isArray(parsed) ? parsed : [];
+                        return saved ? JSON.parse(saved) : [];
                     } catch { return []; }
                 });
                 
@@ -155,7 +187,7 @@
                     if (!val) return alert("Please enter a key first.");
                     setApiKey(val);
                     localStorage.setItem('gemini_key', val);
-                    alert("Key Saved to Device!");
+                    alert("Key Saved!");
                 };
                 
                 useEffect(() => { if (showSettings) setTempKey(apiKey); }, [showSettings, apiKey]);
@@ -210,13 +242,14 @@
                     setIsAnalyzing(true);
                     try {
                         const b64 = newBox.images[0].split(',')[1]; 
-                        const prompt = `Analyze this image of items. EXTRACT ONLY THE PRODUCT NAMES or LABEL TEXT. 
-                        - Be extremely concise. 
-                        - Do NOT describe the container (e.g., do not say 'cardboard box labeled', 'small package containing').
-                        - Do NOT use verbs like 'branded', 'labeled', 'marked'.
-                        - If you see text, return the text ONLY (e.g., 'Metric Forstner Bits', 'GearLight Flashlight', 'Neitra Setup Blocks').
-                        - Remove text like 'Inside this box:'.
-                        Return ONLY a JSON object: { "items": ["Item Name 1", "Item Name 2"], "name": "Suggested Box Name" }`;
+                        // *** UPDATED PROMPT: COMPREHENSIVE / EXHAUSTIVE ***
+                        const prompt = `Analyze this image of items. LIST EVERY SINGLE ITEM VISIBLE.
+                        1. TEXT PRIORITY: If an item has text/labels (e.g., 'Neitra', 'Forstner Bits'), USE THAT TEXT.
+                        2. VISUAL ID: If an item has NO text, describe it visually (e.g., 'Red Speed Square', 'Black Hard Case', 'Silver Ruler').
+                        3. BE EXHAUSTIVE: Do not skip items just because they don't have text. List everything.
+                        4. CLEANUP: Remove phrases like "Inside this box".
+                        Return ONLY a JSON object: { "items": ["Item 1", "Item 2"], "name": "Suggested Box Name" }`;
+                        
                         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                             method: 'POST', headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: b64 } }] }] })
@@ -230,7 +263,7 @@
                 };
 
                 const saveBox = () => {
-                    if (!newBox.name) return alert("Error: Please enter a 'Box Name'.");
+                    if (!newBox.name) return alert("Enter 'Box Name'.");
                     const newId = `box_${Date.now()}`;
                     const boxToSave = { ...newBox, id: newId, createdAt: Date.now() };
                     setBoxes(prev => [boxToSave, ...prev]);
@@ -322,7 +355,7 @@
                         <div className="relative mb-4">
                             {newBox.images[0] ? (
                                 <div className="flex flex-col gap-2">
-                                    <div className="h-56 bg-black rounded-xl overflow-hidden relative cursor-zoom-in" onClick={() => { setPreviewImage(newBox.images[0]); setShowFullImage(true); }}>
+                                    <div className="h-56 bg-black rounded-xl overflow-hidden relative" onClick={() => { setPreviewImage(newBox.images[0]); setShowFullImage(true); }}>
                                         <img src={newBox.images[0]} className="w-full h-full object-contain" />
                                         <div className="absolute bottom-3 right-3 bg-white text-black text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-lg pointer-events-none"><Icon d={Icons.zoom} className="w-3 h-3"/> Tap to Zoom</div>
                                     </div>
@@ -411,14 +444,3 @@
             }
 
             ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-        
-        } catch (error) {
-            var err = document.getElementById('error-display');
-            if(err) {
-                err.style.display = 'block';
-                err.innerHTML += "<strong>React Crash:</strong> " + error.message + "<br><small>App failed to start.</small>";
-            }
-        }
-    </script>
-</body>
-</html>
