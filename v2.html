@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Robust)</title>
+    <title>BoxSnap V2 (Zoom Fixed)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -24,7 +24,7 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- ICONS (Defined first to prevent crashes) ---
+        // --- ICONS ---
         const Icon = ({ d, className="" }) => <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
         const Icons = {
             arrowLeft: "m12 19-7-7 7-7 M19 12H5",
@@ -37,7 +37,6 @@
             package: "M16.5 9.4 7.5 4.21 M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.3 7l8.7 5 8.7-5 M12 22v-10",
             search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35",
             scan: "M3 7V5a2 2 0 0 1 2-2h2 M17 3h2a2 2 0 0 1 2 2v2 M21 17v2a2 2 0 0 1-2 2h-2 M7 21H5a2 2 0 0 1-2-2v-2 M12 12h.01",
-            image: "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M11 14l2 2.4L16 13l3 4H5l4-4 2 1z",
             download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
             upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12",
             save: "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z",
@@ -70,9 +69,9 @@
         const ImageModal = ({ src, onClose }) => {
             if (!src) return null;
             return (
-                <div onClick={onClose} className="fixed inset-0 z-[60] bg-black flex items-center justify-center p-2 cursor-pointer">
-                    <button className="absolute top-4 right-4 text-white p-2 bg-gray-800 rounded-full opacity-70">
-                        <Icon d={Icons.close} />
+                <div onClick={onClose} className="fixed inset-0 z-[9999] bg-black bg-opacity-95 flex items-center justify-center p-2 cursor-pointer backdrop-blur-sm">
+                    <button className="absolute top-6 right-6 text-white p-4 bg-gray-800 rounded-full opacity-80 shadow-lg">
+                        <Icon d={Icons.close} className="w-8 h-8" />
                     </button>
                     <img src={src} className="max-w-full max-h-full object-contain" />
                 </div>
@@ -81,7 +80,6 @@
 
         // --- MAIN APP ---
         function App() {
-            // SAFE DATA LOADING: Prevents crashes if local storage is messy
             const [boxes, setBoxes] = useState(() => {
                 try {
                     const saved = localStorage.getItem('boxsnap_local_data');
@@ -91,7 +89,6 @@
             });
             
             const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
-            
             const [view, setView] = useState('dashboard');
             const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
             const [rawFile, setRawFile] = useState(null);
@@ -127,46 +124,6 @@
             }, [showSettings, apiKey]);
 
             // --- ACTIONS ---
-            const exportData = async () => {
-                const fileName = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
-                const json = JSON.stringify(boxes, null, 2);
-                try {
-                    const file = new File([json], fileName, { type: "application/json" });
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({ files: [file], title: 'BoxSnap Backup', text: 'Backup file' });
-                        return; 
-                    }
-                } catch (err) { console.log("Share failed", err); }
-                
-                const blob = new Blob([json], {type: "application/json"});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-            };
-
-            const importData = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    try {
-                        const imported = JSON.parse(ev.target.result);
-                        if (Array.isArray(imported)) {
-                            if(confirm(`Replace with ${imported.length} boxes?`)) {
-                                setBoxes(imported);
-                                alert("Loaded.");
-                                setShowSettings(false);
-                            }
-                        } else alert("Invalid file.");
-                    } catch(err) { alert("Error reading file."); }
-                };
-                reader.readAsText(file);
-            };
-
             const compressImage = (file) => new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
@@ -224,7 +181,6 @@
                 setIsAnalyzing(true);
                 try {
                     const b64 = newBox.images[0].split(',')[1]; 
-                    // PROMPT: STRICT MODE
                     const prompt = `Analyze this image of items. EXTRACT ONLY THE PRODUCT NAMES or LABEL TEXT. 
                     - Be extremely concise. 
                     - Do NOT describe the container (e.g., do not say 'cardboard box labeled', 'small package containing').
@@ -279,7 +235,41 @@
                 if (found) { openBox(found); } else { alert("Box not found."); }
             };
 
-            // SAFE FILTERING: Prevents crash on bad data
+            const exportData = async () => {
+                const fileName = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
+                const json = JSON.stringify(boxes, null, 2);
+                try {
+                    const file = new File([json], fileName, { type: "application/json" });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({ files: [file], title: 'BoxSnap Backup', text: 'Backup file' });
+                        return; 
+                    }
+                } catch (err) { console.log("Share failed", err); }
+                const blob = new Blob([json], {type: "application/json"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            const importData = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const imported = JSON.parse(ev.target.result);
+                        if (Array.isArray(imported)) {
+                            if(confirm(`Replace with ${imported.length} boxes?`)) { setBoxes(imported); alert("Loaded."); setShowSettings(false); }
+                        } else alert("Invalid file.");
+                    } catch(err) { alert("Error reading file."); }
+                };
+                reader.readAsText(file);
+            };
+
             const filteredBoxes = boxes.filter(b => {
                 const q = searchQuery.toLowerCase();
                 if (!q) return true;
@@ -332,111 +322,9 @@
                     </div>
                     <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
                     
-                    <div className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 mb-3 relative overflow-hidden">
-                        {newBox.images[0] ? (
-                            <>
-                                <img src={newBox.images[0]} className="absolute inset-0 w-full h-full object-cover opacity-80" onClick={() => fileRef.current.click()}/>
-                                <button onClick={(e) => { e.stopPropagation(); setPreviewImage(newBox.images[0]); setShowFullImage(true); }} className="absolute bottom-2 right-2 p-2 bg-black bg-opacity-60 rounded-full text-white z-10">
-                                    <Icon d={Icons.zoom} className="w-5 h-5"/>
-                                </button>
-                                <span className="relative font-bold text-sm mt-1 z-0 pointer-events-none text-black bg-white bg-opacity-50 px-2 rounded">Tap to Retake</span>
-                            </>
-                        ) : (
-                            <div onClick={() => fileRef.current.click()} className="w-full h-full flex flex-col items-center justify-center cursor-pointer">
-                                <Icon d={Icons.camera} className="w-8 h-8"/>
-                                <span className="font-bold text-sm mt-1">Tap to Add Photo</span>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
-                        {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
-                    </button>
-                    
-                    <div className="space-y-4 flex-1">
-                        <input className="w-full p-3 border border-slate-200 rounded-xl" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                        
-                        <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
-                            <div className="flex flex-col gap-2 mb-3">
-                                {newBox.items.map((item, i) => (
-                                    <div key={i} className="bg-white border border-slate-300 px-4 py-3 rounded-lg text-base flex justify-between items-center shadow-sm">
-                                        <span className="font-medium text-slate-800">{item}</span>
-                                        <button onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))} className="text-red-400 p-1 hover:text-red-600"><Icon d={Icons.close} className="w-5 h-5"/></button>
-                                    </div>
-                                ))}
-                            </div>
-                            <input className="w-full bg-transparent text-base outline-none p-2 border-b-2 border-transparent focus:border-indigo-200 transition-colors" placeholder="+ Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, e.target.value]})); e.target.value = ''; }}} />
-                        </div>
-                        <select className="w-full p-3 border border-slate-200 rounded-xl bg-white" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
-                    </div>
-                    <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2">Save Box</button>
-                </div>
-            );
-
-            if (view === 'detail' && selectedBox) return (
-                <div className="p-6 bg-white min-h-screen animate-in">
-                    <div className="flex justify-between items-center mb-4">
-                        <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
-                        <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
-                    </div>
-                    
-                    <div onClick={() => { setPreviewImage(selectedBoxImage); setShowFullImage(true); }} className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300 relative cursor-pointer">
-                         {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
-                         {selectedBoxImage && <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full flex gap-1 items-center"><Icon d={Icons.zoom} className="w-3 h-3"/> Zoom</div>}
-                    </div>
-                    
-                    <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
-                    <p className="text-slate-500 mb-6">{selectedBox.room}</p>
-                    
-                    <div className="bg-slate-50 p-4 rounded-xl border mb-6 flex flex-wrap gap-2">
-                        {(selectedBox.items || []).map((item, i) => <span key={i} className="bg-white border border-slate-200 px-3 py-2 rounded-lg text-base shadow-sm font-medium text-slate-700">{item}</span>)}
-                    </div>
-                    
-                    <div className="text-center border-t pt-6">
-                        <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
-                        <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
-                    </div>
-                </div>
-            );
-
-            return (
-                <div className="p-5 bg-slate-50 min-h-screen pb-32">
-                    <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap V2</h1>
-                        <div className="flex gap-2">
-                            <button onClick={() => setShowSettings(true)} className="p-3 bg-white text-slate-700 shadow rounded-full"><Icon d={Icons.settings} className="w-5 h-5" /></button>
-                            <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
-                        </div>
-                    </div>
-
+                    {/* PHOTO AREA - SEPARATED CLICK ZONES */}
                     <div className="relative mb-4">
-                        <input className="w-full p-3 pl-10 border rounded-xl shadow-sm" placeholder="Search items..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                        <div className="absolute left-3 top-3 text-slate-400"><Icon d={Icons.search} /></div>
-                    </div>
-
-                    <div className="space-y-3">
-                        {filteredBoxes.map(box => (
-                            <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 box-card cursor-pointer">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="font-bold text-lg text-slate-900">{box.name || "Untitled Box"}</h3>
-                                    <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
-                                </div>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                    {(box.items || []).slice(0, 3).map((item, i) => (
-                                        <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>
-                                    ))}
-                                    {(box.items || []).length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    
-                    <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
-                </div>
-            );
-        }
-
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-    </script>
-</body>
-</html>
+                        {newBox.images[0] ? (
+                            <div className="flex flex-col gap-2">
+                                {/* IMAGE = ZOOM ONLY */}
+                                <div className="h-56 bg-black rounded-xl overflow-hidden relative cursor-zoom-in" onClick={() => { setPreviewImage(newBox.images
