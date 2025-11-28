@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (TapZoom + Smart AI)</title>
+    <title>BoxSnap V2 (Stable)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -17,10 +17,13 @@
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <style>
@@ -28,7 +31,6 @@
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
         .box-card { transition: transform 0.1s ease-in-out; }
         .box-card:active { transform: scale(0.98); }
-        /* Prevent standard browser zoom behavior on the modal */
         .modal-prevent-touch { touch-action: none; }
     </style>
 </head>
@@ -66,7 +68,7 @@
                 zoom: "M15 15l6 6m-11-4a7 7 0 110-14 7 7 0 010 14z"
             };
 
-            // --- COMPONENT: TAP-TO-ZOOM MODAL (Custom Implementation) ---
+            // --- COMPONENT: TAP-TO-ZOOM MODAL ---
             const ImageModal = ({ src, onClose }) => {
                 const [zoomed, setZoomed] = useState(false);
                 const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -82,7 +84,7 @@
 
                 const handleTouchMove = (e) => {
                     if (!isDragging || !zoomed) return;
-                    e.preventDefault(); // Stop screen from scrolling
+                    e.preventDefault(); 
                     const touch = e.touches[0];
                     setPosition({ x: touch.clientX - start.x, y: touch.clientY - start.y });
                 };
@@ -107,7 +109,7 @@
                         
                         <div 
                             className="w-full h-full flex items-center justify-center overflow-hidden relative"
-                            onClick={onClose} // Close if clicking black area
+                            onClick={onClose} 
                         >
                             <img 
                                 src={src} 
@@ -242,7 +244,7 @@
                     setIsAnalyzing(true);
                     try {
                         const b64 = newBox.images[0].split(',')[1]; 
-                        // *** UPDATED PROMPT: COMPREHENSIVE / EXHAUSTIVE ***
+                        // PROMPT: EXHAUSTIVE LISTING
                         const prompt = `Analyze this image of items. LIST EVERY SINGLE ITEM VISIBLE.
                         1. TEXT PRIORITY: If an item has text/labels (e.g., 'Neitra', 'Forstner Bits'), USE THAT TEXT.
                         2. VISUAL ID: If an item has NO text, describe it visually (e.g., 'Red Speed Square', 'Black Hard Case', 'Silver Ruler').
@@ -355,7 +357,7 @@
                         <div className="relative mb-4">
                             {newBox.images[0] ? (
                                 <div className="flex flex-col gap-2">
-                                    <div className="h-56 bg-black rounded-xl overflow-hidden relative" onClick={() => { setPreviewImage(newBox.images[0]); setShowFullImage(true); }}>
+                                    <div className="h-56 bg-black rounded-xl overflow-hidden relative cursor-zoom-in" onClick={() => { setPreviewImage(newBox.images[0]); setShowFullImage(true); }}>
                                         <img src={newBox.images[0]} className="w-full h-full object-contain" />
                                         <div className="absolute bottom-3 right-3 bg-white text-black text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-lg pointer-events-none"><Icon d={Icons.zoom} className="w-3 h-3"/> Tap to Zoom</div>
                                     </div>
