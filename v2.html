@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Stable)</title>
+    <title>BoxSnap V2 (Numbered Lists)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -17,12 +17,9 @@
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
@@ -93,12 +90,7 @@
 
                 const toggleZoom = (e) => {
                     e.stopPropagation();
-                    if (zoomed) {
-                        setZoomed(false);
-                        setPosition({ x: 0, y: 0 });
-                    } else {
-                        setZoomed(true);
-                    }
+                    if (zoomed) { setZoomed(false); setPosition({ x: 0, y: 0 }); } else { setZoomed(true); }
                 };
 
                 return (
@@ -106,25 +98,8 @@
                         <button onClick={onClose} className="absolute top-4 right-4 z-50 text-white p-3 bg-gray-800 rounded-full opacity-80 shadow-lg">
                             <Icon d={Icons.close} className="w-6 h-6" />
                         </button>
-                        
-                        <div 
-                            className="w-full h-full flex items-center justify-center overflow-hidden relative"
-                            onClick={onClose} 
-                        >
-                            <img 
-                                src={src} 
-                                style={{ 
-                                    transform: `scale(${zoomed ? 2.5 : 1}) translate(${position.x / 2.5}px, ${position.y / 2.5}px)`,
-                                    transition: isDragging ? 'none' : 'transform 0.2s ease-out',
-                                    cursor: zoomed ? 'grab' : 'zoom-in',
-                                    touchAction: 'none'
-                                }}
-                                className="max-w-full max-h-full object-contain"
-                                onClick={toggleZoom}
-                                onTouchStart={handleTouchStart}
-                                onTouchMove={handleTouchMove}
-                                onTouchEnd={handleTouchEnd}
-                            />
+                        <div className="w-full h-full flex items-center justify-center overflow-hidden relative" onClick={onClose}>
+                            <img src={src} style={{ transform: `scale(${zoomed ? 2.5 : 1}) translate(${position.x / 2.5}px, ${position.y / 2.5}px)`, transition: isDragging ? 'none' : 'transform 0.2s ease-out', cursor: zoomed ? 'grab' : 'zoom-in', touchAction: 'none' }} className="max-w-full max-h-full object-contain" onClick={toggleZoom} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} />
                         </div>
                         <div className="absolute bottom-10 left-0 right-0 text-center pointer-events-none">
                             <span className="bg-black bg-opacity-50 text-white px-4 py-2 rounded-full text-sm font-bold">
@@ -244,12 +219,12 @@
                     setIsAnalyzing(true);
                     try {
                         const b64 = newBox.images[0].split(',')[1]; 
-                        // PROMPT: EXHAUSTIVE LISTING
-                        const prompt = `Analyze this image of items. LIST EVERY SINGLE ITEM VISIBLE.
-                        1. TEXT PRIORITY: If an item has text/labels (e.g., 'Neitra', 'Forstner Bits'), USE THAT TEXT.
-                        2. VISUAL ID: If an item has NO text, describe it visually (e.g., 'Red Speed Square', 'Black Hard Case', 'Silver Ruler').
-                        3. BE EXHAUSTIVE: Do not skip items just because they don't have text. List everything.
-                        4. CLEANUP: Remove phrases like "Inside this box".
+                        // *** UPDATED PROMPT: ORDERED SCANNING ***
+                        const prompt = `Analyze this image of items.
+                        1. SCANNING ORDER: List items strictly from TOP-LEFT to BOTTOM-RIGHT of the image. This allows the user to cross-reference the list numbers with the image.
+                        2. TEXT PRIORITY: If an item has text/labels (e.g., 'Neitra', 'Forstner Bits'), USE THAT TEXT.
+                        3. VISUAL ID: If an item has NO text, describe it visually (e.g., 'Red Speed Square', 'Black Hard Case').
+                        4. BE EXHAUSTIVE: List every distinct item found.
                         Return ONLY a JSON object: { "items": ["Item 1", "Item 2"], "name": "Suggested Box Name" }`;
                         
                         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
@@ -359,101 +334,4 @@
                                 <div className="flex flex-col gap-2">
                                     <div className="h-56 bg-black rounded-xl overflow-hidden relative cursor-zoom-in" onClick={() => { setPreviewImage(newBox.images[0]); setShowFullImage(true); }}>
                                         <img src={newBox.images[0]} className="w-full h-full object-contain" />
-                                        <div className="absolute bottom-3 right-3 bg-white text-black text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-lg pointer-events-none"><Icon d={Icons.zoom} className="w-3 h-3"/> Tap to Zoom</div>
-                                    </div>
-                                    <button onClick={() => fileRef.current.click()} className="w-full py-3 bg-slate-100 text-slate-500 font-bold rounded-xl border border-slate-200 flex justify-center items-center gap-2"><Icon d={Icons.camera} className="w-5 h-5"/> Retake Photo</button>
-                                </div>
-                            ) : (
-                                <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 cursor-pointer">
-                                    <div className="flex flex-col items-center"><Icon d={Icons.camera} className="w-8 h-8"/><span className="font-bold text-sm mt-1">Tap to Add Photo</span></div>
-                                </div>
-                            )}
-                        </div>
-                        <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
-                            {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
-                        </button>
-                        <div className="space-y-4 flex-1">
-                            <input className="w-full p-3 border border-slate-200 rounded-xl text-lg" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                            <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
-                                <div className="flex flex-col gap-2 mb-3">
-                                    {newBox.items.map((item, i) => (
-                                        <div key={i} className="bg-white border border-slate-300 px-4 py-3 rounded-lg text-lg flex justify-between items-center shadow-sm">
-                                            <span className="font-medium text-slate-800">{item}</span>
-                                            <button onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))} className="text-red-400 p-1 hover:text-red-600"><Icon d={Icons.close} className="w-5 h-5"/></button>
-                                        </div>
-                                    ))}
-                                </div>
-                                <input className="w-full bg-transparent text-lg outline-none p-2 border-b-2 border-transparent focus:border-indigo-200 transition-colors" placeholder="+ Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, e.target.value]})); e.target.value = ''; }}} />
-                            </div>
-                            <select className="w-full p-3 border border-slate-200 rounded-xl bg-white text-lg" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
-                        </div>
-                        <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2 text-lg">Save Box</button>
-                    </div>
-                );
-
-                if (view === 'detail' && selectedBox) return (
-                    <div className="p-6 bg-white min-h-screen animate-in">
-                        <div className="flex justify-between items-center mb-4">
-                            <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
-                            <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
-                        </div>
-                        <div onClick={() => { setPreviewImage(selectedBoxImage); setShowFullImage(true); }} className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300 relative cursor-pointer">
-                            {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
-                            {selectedBoxImage && <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full flex gap-1 items-center"><Icon d={Icons.zoom} className="w-3 h-3"/> Zoom</div>}
-                        </div>
-                        <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
-                        <p className="text-slate-500 mb-6">{selectedBox.room}</p>
-                        <div className="bg-slate-50 p-4 rounded-xl border mb-6 flex flex-wrap gap-2">
-                            {(selectedBox.items || []).map((item, i) => <span key={i} className="bg-white border border-slate-200 px-3 py-2 rounded-lg text-lg shadow-sm font-medium text-slate-700">{item}</span>)}
-                        </div>
-                        <div className="text-center border-t pt-6">
-                            <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
-                            <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
-                        </div>
-                    </div>
-                );
-
-                return (
-                    <div className="p-5 bg-slate-50 min-h-screen pb-32">
-                        <div className="flex justify-between items-center mb-6">
-                            <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap V2</h1>
-                            <div className="flex gap-2">
-                                <button onClick={() => setShowSettings(true)} className="p-3 bg-white text-slate-700 shadow rounded-full"><Icon d={Icons.settings} className="w-5 h-5" /></button>
-                                <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
-                            </div>
-                        </div>
-                        <div className="relative mb-4">
-                            <input className="w-full p-3 pl-10 border rounded-xl shadow-sm" placeholder="Search items..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                            <div className="absolute left-3 top-3 text-slate-400"><Icon d={Icons.search} /></div>
-                        </div>
-                        <div className="space-y-3">
-                            {filteredBoxes.map(box => (
-                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 box-card cursor-pointer">
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="font-bold text-lg text-slate-900">{box.name || "Untitled Box"}</h3>
-                                        <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {(box.items || []).slice(0, 3).map((item, i) => <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && item.toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>{item}</span>)}
-                                        {(box.items || []).length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
-                    </div>
-                );
-            }
-
-            ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-        
-        } catch (error) {
-            var err = document.getElementById('error-display');
-            if(err) {
-                err.style.display = 'block';
-                err.innerHTML += "<strong>React Crash:</strong> " + error.message + "<br><small>App failed to start.</small>";
-            }
-        }
-    </script>
-</body>
-</html>
+                                        <div className="absolute bottom
