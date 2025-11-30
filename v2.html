@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Cloudflare Stable)</title>
+    <title>BoxSnap V2 (Deep Linking)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -12,21 +12,16 @@
             if(loader) loader.style.display = 'none';
             if(err) {
                 err.style.display = 'block';
-                if (msg === "Script error.") {
-                    msg = "Network Block: A script failed to load. Check your internet or disable AdBlock/Shields.";
-                }
-                err.innerHTML += "<strong>CRITICAL ERROR:</strong> " + msg + "<br><small>" + url + " (Line " + line + ")</small><br><br>";
+                err.innerHTML += "<strong>" + msg + "</strong><br><small>" + url + " (Line " + line + ")</small><br><br>";
             }
             return false;
         };
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
@@ -42,7 +37,6 @@
             50% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); border-color: #86efac; background-color: rgba(34, 197, 94, 0.3); }
             100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); border-color: #22c55e; background-color: rgba(34, 197, 94, 0.1); }
         }
-        
         .neon-box {
             position: absolute;
             border: 2px solid rgba(34, 197, 94, 0.8);
@@ -50,53 +44,23 @@
             z-index: 20;
             cursor: pointer;
         }
-        
-        /* BULLSEYE TARGET */
         .neon-box::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 8px; height: 8px;
-            background-color: #22c55e;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 10px #fff;
+            content: ''; position: absolute; top: 50%; left: 50%; width: 8px; height: 8px;
+            background-color: #22c55e; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 10px #fff;
         }
-        
-        /* ACTIVE STATE (When clicked) */
         .neon-box.active {
-            border-color: #facc15;
-            background-color: rgba(250, 204, 21, 0.3);
-            animation: none;
-            z-index: 30;
+            border-color: #facc15; background-color: rgba(250, 204, 21, 0.3); animation: none; z-index: 30;
         }
         .neon-box.active::after { background-color: #facc15; }
-
         .item-label {
-            position: absolute;
-            top: -35px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #facc15;
-            color: black;
-            padding: 4px 12px;
-            border-radius: 999px;
-            font-weight: bold;
-            font-size: 14px;
-            white-space: nowrap;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            z-index: 40;
-            border: 2px solid white;
+            position: absolute; top: -35px; left: 50%; transform: translateX(-50%);
+            background: #facc15; color: black; padding: 4px 12px; border-radius: 999px;
+            font-weight: bold; font-size: 14px; white-space: nowrap;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 40; border: 2px solid white;
         }
         .item-label::after {
-            content: '';
-            position: absolute;
-            bottom: -6px;
-            left: 50%;
-            transform: translateX(-50%);
-            border-width: 6px 6px 0;
-            border-style: solid;
-            border-color: #facc15 transparent transparent transparent;
+            content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+            border-width: 6px 6px 0; border-style: solid; border-color: #facc15 transparent transparent transparent;
         }
     </style>
 </head>
@@ -106,18 +70,15 @@
     <div id="loading-screen" style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #64748b;">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
         <h2 style="margin-top: 15px; font-weight: bold; font-size: 1.2rem;">Loading BoxSnap...</h2>
-        <p style="font-size: 0.9rem; margin-top: 5px;">Connecting to Cloudflare...</p>
     </div>
 
     <div id="root"></div>
 
     <script type="text/babel">
-        // SAFETY CHECK: Ensure Libraries Loaded
         if (!window.React || !window.ReactDOM) {
-            document.getElementById('loading-screen').innerHTML = "<h2 style='color:red'>Failed to load React.</h2><p>Please check your internet connection.</p>";
+            document.getElementById('loading-screen').innerHTML = "<h2 style='color:red'>Network Error</h2><p>Scripts failed to load.</p>";
             throw new Error("React Library missing");
         }
-
         document.getElementById('loading-screen').style.display = 'none';
 
         try {
@@ -311,6 +272,25 @@
                 const qrRef = useRef(null);
                 const importRef = useRef(null);
 
+                // --- DEEP LINK HANDLER ---
+                useEffect(() => {
+                    const params = new URLSearchParams(window.location.search);
+                    const boxId = params.get('box');
+                    if (boxId) {
+                        const found = boxes.find(b => b.id === boxId);
+                        if (found) {
+                            setSelectedBox(found);
+                            setSelectedBoxImage((found.images && found.images[0]) ? found.images[0] : null);
+                            setView('detail');
+                        } else {
+                            // Only alert if we have boxes loaded, otherwise it might be a fresh load race condition
+                            if (boxes.length > 0) {
+                                alert(`Box ID ${boxId} not found on this device. Please Import Backup from your other device.`);
+                            }
+                        }
+                    }
+                }, [boxes]); // Re-run when boxes load
+
                 useEffect(() => { localStorage.setItem('boxsnap_local_data', JSON.stringify(boxes)); }, [boxes]);
                 useEffect(() => { localStorage.setItem('boxsnap_rooms', JSON.stringify(availableRooms)); }, [availableRooms]);
 
@@ -367,7 +347,7 @@
                     setView('detail');
                 };
                 
-                // ROOM CHANGE HANDLER (Supports Custom)
+                // ROOM CHANGE HANDLER
                 const handleRoomChange = (e) => {
                     const val = e.target.value;
                     if (val === '___NEW___') {
