@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Dev + Numbered)</title>
+    <title>BoxSnap V2 (Visual Search)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -34,6 +34,16 @@
         .box-card { transition: transform 0.1s ease-in-out; }
         .box-card:active { transform: scale(0.98); }
         .modal-prevent-touch { touch-action: none; }
+        
+        /* Bounding Box Animation */
+        @keyframes pulse-border {
+            0% { border-color: rgba(34, 197, 94, 0.5); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { border-color: rgba(34, 197, 94, 1); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { border-color: rgba(34, 197, 94, 0.5); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .highlight-box {
+            animation: pulse-border 2s infinite;
+        }
     </style>
 </head>
 <body>
@@ -72,8 +82,8 @@
                 zoom: "M15 15l6 6m-11-4a7 7 0 110-14 7 7 0 010 14z"
             };
 
-            // --- COMPONENT: TAP-TO-ZOOM MODAL ---
-            const ImageModal = ({ src, onClose }) => {
+            // --- COMPONENT: TAP-TO-ZOOM MODAL WITH OVERLAYS ---
+            const ImageModal = ({ src, onClose, overlays = [] }) => {
                 const [zoomed, setZoomed] = useState(false);
                 const [position, setPosition] = useState({ x: 0, y: 0 });
                 const [start, setStart] = useState({ x: 0, y: 0 });
@@ -106,31 +116,45 @@
                             <Icon d={Icons.close} className="w-6 h-6" />
                         </button>
                         <div className="w-full h-full flex items-center justify-center overflow-hidden relative" onClick={onClose}>
-                            <img src={src} style={{ transform: `scale(${zoomed ? 2.5 : 1}) translate(${position.x / 2.5}px, ${position.y / 2.5}px)`, transition: isDragging ? 'none' : 'transform 0.2s ease-out', cursor: zoomed ? 'grab' : 'zoom-in', touchAction: 'none' }} className="max-w-full max-h-full object-contain" onClick={toggleZoom} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} />
+                            {/* ZOOM CONTAINER */}
+                            <div 
+                                style={{ 
+                                    transform: `scale(${zoomed ? 2.5 : 1}) translate(${position.x / 2.5}px, ${position.y / 2.5}px)`, 
+                                    transition: isDragging ? 'none' : 'transform 0.2s ease-out', 
+                                    cursor: zoomed ? 'grab' : 'zoom-in', 
+                                    touchAction: 'none',
+                                    position: 'relative',
+                                    display: 'inline-block'
+                                }}
+                                onClick={toggleZoom}
+                                onTouchStart={handleTouchStart}
+                                onTouchMove={handleTouchMove}
+                                onTouchEnd={handleTouchEnd}
+                            >
+                                <img src={src} className="max-w-full max-h-full object-contain block" style={{maxWidth: '100vw', maxHeight: '100vh'}} />
+                                
+                                {/* VISUAL SEARCH OVERLAYS */}
+                                {overlays.map((box, i) => (
+                                    <div key={i} className="absolute border-4 border-green-500 highlight-box z-10"
+                                        style={{
+                                            top: `${box[0]}%`,
+                                            left: `${box[1]}%`,
+                                            height: `${box[2] - box[0]}%`,
+                                            width: `${box[3] - box[1]}%`,
+                                            pointerEvents: 'none'
+                                        }}
+                                    >
+                                        <span className="absolute -top-8 left-0 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm whitespace-nowrap">
+                                            Found Match
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                         <div className="absolute bottom-10 left-0 right-0 text-center pointer-events-none">
                             <span className="bg-black bg-opacity-50 text-white px-4 py-2 rounded-full text-sm font-bold">
                                 {zoomed ? "Drag to Pan • Tap to Zoom Out" : "Tap Image to Zoom In"}
                             </span>
-                        </div>
-                    </div>
-                );
-            };
-
-            const QRScanner = ({ onScan, onClose }) => {
-                useEffect(() => {
-                    if (window.Html5QrcodeScanner) {
-                        const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-                        scanner.render((txt) => { scanner.clear(); onScan(txt); }, console.warn);
-                        return () => { try { scanner.clear(); } catch(e){} };
-                    } else { alert("Scanner library failed to load. Check internet."); }
-                }, []);
-                return (
-                    <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center p-4">
-                        <div className="bg-white p-4 rounded-xl w-full max-w-sm">
-                            <h2 className="text-lg font-bold mb-2 text-center">Scan Box Label</h2>
-                            <div id="reader" className="w-full h-64 bg-gray-100"></div>
-                            <button onClick={onClose} className="w-full mt-4 py-3 bg-red-100 text-red-600 rounded-lg font-bold">Cancel</button>
                         </div>
                     </div>
                 );
@@ -147,7 +171,7 @@
                 
                 const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
                 const [view, setView] = useState('dashboard');
-                const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
+                const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' }); // items will be objects now: {text, box}
                 const [rawFile, setRawFile] = useState(null);
                 const [selectedBox, setSelectedBox] = useState(null);
                 const [selectedBoxImage, setSelectedBoxImage] = useState(null);
@@ -158,6 +182,7 @@
                 const [showFullImage, setShowFullImage] = useState(false); 
                 const [previewImage, setPreviewImage] = useState(null);
                 const [tempKey, setTempKey] = useState("");
+                const [highlightOverlays, setHighlightOverlays] = useState([]);
 
                 const fileRef = useRef(null);
                 const qrRef = useRef(null);
@@ -217,6 +242,20 @@
                 const openBox = (box) => {
                     setSelectedBox(box);
                     setSelectedBoxImage((box.images && box.images[0]) ? box.images[0] : null); 
+                    
+                    // CALCULATE VISUAL SEARCH OVERLAYS
+                    if (searchQuery && box.items) {
+                        const matches = box.items.filter(item => {
+                            const txt = typeof item === 'string' ? item : item.text;
+                            return txt.toLowerCase().includes(searchQuery.toLowerCase());
+                        });
+                        // Filter for items that actually have coordinate data
+                        const coords = matches.map(m => (typeof m === 'object' && m.box_2d) ? m.box_2d : null).filter(Boolean);
+                        setHighlightOverlays(coords);
+                    } else {
+                        setHighlightOverlays([]);
+                    }
+                    
                     setView('detail');
                 };
                 
@@ -226,13 +265,13 @@
                     setIsAnalyzing(true);
                     try {
                         const b64 = newBox.images[0].split(',')[1]; 
-                        // --- PROMPT: ORDERED & NUMBERED ---
+                        // --- PROMPT: VISUAL COORDINATES ---
                         const prompt = `Analyze this image of items.
-                        1. ORDER: List items strictly from TOP-LEFT to BOTTOM-RIGHT.
-                        2. TEXT PRIORITY: Use label text if visible (e.g., 'Neitra', 'Forstner Bits').
-                        3. VISUAL ID: If no text, describe visually (e.g., 'Red Speed Square').
-                        4. EXHAUSTIVE: List every item found.
-                        Return ONLY a JSON object: { "items": ["Item 1", "Item 2"], "name": "Suggested Box Name" }`;
+                        1. ORDER: Top-Left to Bottom-Right.
+                        2. COORDINATES: For EVERY item, return the 2D bounding box as [ymin, xmin, ymax, xmax] on a scale of 0 to 100.
+                        3. TEXT PRIORITY: Use labels if visible.
+                        4. EXHAUSTIVE: List everything.
+                        Return ONLY a JSON object: { "items": [ { "text": "Hammer", "box_2d": [10, 10, 30, 20] } ], "name": "Suggested Box Name" }`;
                         
                         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                             method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -241,7 +280,12 @@
                         const data = await res.json();
                         if (data.error) throw new Error(data.error.message);
                         const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
-                        setNewBox(p => ({ ...p, items: [...new Set([...p.items, ...(json.items || [])])], name: p.name || json.name || "" }));
+                        
+                        // Handle legacy vs new format (string vs object)
+                        const items = json.items || [];
+                        const formattedItems = items.map(i => typeof i === 'string' ? { text: i, box_2d: null } : i);
+                        
+                        setNewBox(p => ({ ...p, items: [...p.items, ...formattedItems], name: p.name || json.name || "" }));
                     } catch (e) { alert("AI Error: " + e.message); }
                     setIsAnalyzing(false);
                 };
@@ -302,13 +346,14 @@
                     if (!q) return true;
                     const name = (b.name || "").toLowerCase();
                     const room = (b.room || "").toLowerCase();
-                    const items = (b.items || []).map(i => i.toLowerCase());
+                    // Handle both String items (old) and Object items (new)
+                    const items = (b.items || []).map(i => typeof i === 'string' ? i.toLowerCase() : i.text.toLowerCase());
                     return name.includes(q) || room.includes(q) || items.some(i => i.includes(q));
                 });
 
                 // --- RENDERS ---
                 if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
-                if (showFullImage) return <ImageModal src={previewImage} onClose={() => { setShowFullImage(false); setPreviewImage(null); }} />;
+                if (showFullImage) return <ImageModal src={previewImage} onClose={() => { setShowFullImage(false); setPreviewImage(null); }} overlays={highlightOverlays} />;
 
                 if (showSettings) return (
                     <div className="p-6 bg-white min-h-screen">
@@ -317,4 +362,140 @@
                             <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} /></button>
                         </div>
                         <div className="mb-6">
-                            <label className="block font-bold text-xs text-slate-500 uppercase
+                            <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
+                            <div className="flex gap-2">
+                                <input className="flex-1 p-3 border rounded-xl font-mono text-sm" type="password" value={tempKey} onChange={(e) => setTempKey(e.target.value)} placeholder="AIza..." />
+                                <button onClick={saveKey} className="bg-green-600 text-white px-4 rounded-xl font-bold text-sm">Save</button>
+                            </div>
+                            <p className={`text-xs mt-2 ${apiKey ? 'text-green-600 font-bold' : 'text-red-500'}`}>{apiKey ? '✓ Key currently active' : '⚠ No key saved'}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center text-center"><Icon d={Icons.download} className="mb-1" /> Backup</button>
+                            <button onClick={() => importRef.current.click()} className="p-4 border-2 border-green-100 bg-green-50 rounded-xl text-green-700 font-bold flex flex-col items-center"><Icon d={Icons.upload} className="mb-1" /> Restore</button>
+                            <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
+                        </div>
+                    </div>
+                );
+
+                if (view === 'add') return (
+                    <div className="p-6 bg-white min-h-screen animate-in flex flex-col pb-32">
+                        <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900"><span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box</div>
+                        <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
+                        <div className="relative mb-4">
+                            {newBox.images[0] ? (
+                                <div className="flex flex-col gap-2">
+                                    <div className="h-56 bg-black rounded-xl overflow-hidden relative cursor-zoom-in" onClick={() => { setPreviewImage(newBox.images[0]); setHighlightOverlays([]); setShowFullImage(true); }}>
+                                        <img src={newBox.images[0]} className="w-full h-full object-contain" />
+                                        <div className="absolute bottom-3 right-3 bg-white text-black text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-lg pointer-events-none"><Icon d={Icons.zoom} className="w-3 h-3"/> Tap to Zoom</div>
+                                    </div>
+                                    <button onClick={() => fileRef.current.click()} className="w-full py-3 bg-slate-100 text-slate-500 font-bold rounded-xl border border-slate-200 flex justify-center items-center gap-2"><Icon d={Icons.camera} className="w-5 h-5"/> Retake Photo</button>
+                                </div>
+                            ) : (
+                                <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 cursor-pointer">
+                                    <div className="flex flex-col items-center"><Icon d={Icons.camera} className="w-8 h-8"/><span className="font-bold text-sm mt-1">Tap to Add Photo</span></div>
+                                </div>
+                            )}
+                        </div>
+                        <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
+                            {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
+                        </button>
+                        <div className="space-y-4 flex-1">
+                            <input className="w-full p-3 border border-slate-200 rounded-xl text-lg" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
+                            <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
+                                <div className="flex flex-col gap-2 mb-3">
+                                    {/* LIST VIEW NUMBERING */}
+                                    {newBox.items.map((item, i) => (
+                                        <div key={i} className="bg-white border border-slate-300 px-4 py-3 rounded-lg text-lg flex justify-between items-center shadow-sm">
+                                            <span className="flex-none bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold mr-3">{i+1}</span>
+                                            {/* Handle legacy string vs new object format */}
+                                            <span className="font-medium text-slate-800">{typeof item === 'string' ? item : item.text}</span>
+                                            <button onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))} className="text-red-400 p-1 hover:text-red-600 ml-auto"><Icon d={Icons.close} className="w-5 h-5"/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <input className="w-full bg-transparent text-lg outline-none p-2 border-b-2 border-transparent focus:border-indigo-200 transition-colors" placeholder="+ Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, {text: e.target.value, box_2d: null}]})); e.target.value = ''; }}} />
+                            </div>
+                            <select className="w-full p-3 border border-slate-200 rounded-xl bg-white text-lg" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
+                        </div>
+                        <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2 text-lg">Save Box</button>
+                    </div>
+                );
+
+                if (view === 'detail' && selectedBox) return (
+                    <div className="p-6 bg-white min-h-screen animate-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
+                            <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
+                        </div>
+                        <div onClick={() => { setPreviewImage(selectedBoxImage); setShowFullImage(true); }} className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border mb-4 flex items-center justify-center text-slate-300 relative cursor-pointer">
+                            {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
+                            {selectedBoxImage && <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full flex gap-1 items-center"><Icon d={Icons.zoom} className="w-3 h-3"/> Zoom</div>}
+                            {/* SEARCH BADGE HINT */}
+                            {highlightOverlays.length > 0 && <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded animate-pulse">Match Found! Tap to See</div>}
+                        </div>
+                        <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
+                        <p className="text-slate-500 mb-6">{selectedBox.room}</p>
+                        <div className="bg-slate-50 p-4 rounded-xl border mb-6 flex flex-col gap-2">
+                            {/* DETAIL VIEW NUMBERING */}
+                            {(selectedBox.items || []).map((item, i) => (
+                                <div key={i} className={`bg-white border border-slate-200 px-3 py-2 rounded-lg text-lg shadow-sm font-medium text-slate-700 flex gap-2 items-center ${highlightOverlays.includes((item.box_2d)) ? 'border-green-500 ring-2 ring-green-100' : ''}`}>
+                                    <span className="flex-none bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold mr-3">{i+1}</span>
+                                    <span>{typeof item === 'string' ? item : item.text}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="text-center border-t pt-6">
+                            <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
+                            <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
+                        </div>
+                    </div>
+                );
+
+                return (
+                    <div className="p-5 bg-slate-50 min-h-screen pb-32">
+                        <div className="flex justify-between items-center mb-6">
+                            <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap V2</h1>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowSettings(true)} className="p-3 bg-white text-slate-700 shadow rounded-full"><Icon d={Icons.settings} className="w-5 h-5" /></button>
+                                <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
+                            </div>
+                        </div>
+                        <div className="relative mb-4">
+                            <input className="w-full p-3 pl-10 border rounded-xl shadow-sm" placeholder="Search items..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                            <div className="absolute left-3 top-3 text-slate-400"><Icon d={Icons.search} /></div>
+                        </div>
+                        <div className="space-y-3">
+                            {filteredBoxes.map(box => (
+                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 box-card cursor-pointer">
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-bold text-lg text-slate-900">{box.name || "Untitled Box"}</h3>
+                                        <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {(box.items || []).slice(0, 3).map((item, i) => (
+                                            <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && (typeof item === 'string' ? item : item.text).toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>
+                                                {typeof item === 'string' ? item : item.text}
+                                            </span>
+                                        ))}
+                                        {(box.items || []).length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
+                    </div>
+                );
+            }
+
+            ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        
+        } catch (error) {
+            var err = document.getElementById('error-display');
+            if(err) {
+                err.style.display = 'block';
+                err.innerHTML += "<strong>React Crash:</strong> " + error.message + "<br><small>App failed to start.</small>";
+            }
+        }
+    </script>
+</body>
+</html>
