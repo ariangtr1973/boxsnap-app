@@ -551,3 +551,97 @@
                                     onChange={e => setLocalSearch(e.target.value)}
                                 />
                                 <div className="absolute left-3 top-3 text-indigo-400"><Icon d={Icons.search} /></div>
+                            </div>
+                            {selectedBox.items && selectedBox.items.some(i => typeof i === 'string') && (
+                                <p className="text-xs text-orange-500 text-center">⚠ Some items lack location data. Re-scan for highlights.</p>
+                            )}
+                        </div>
+
+                        <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
+                        <p className="text-slate-500 mb-6">{selectedBox.room}</p>
+                        
+                        <div className="bg-slate-50 p-4 rounded-xl border mb-6 flex flex-col gap-2">
+                            {(selectedBox.items || []).map((item, i) => {
+                                const txt = typeof item === 'string' ? item : item.text;
+                                const isMatch = localSearch && txt.toLowerCase().includes(localSearch.toLowerCase());
+                                return (
+                                    <div key={i} className={`bg-white border border-slate-200 px-3 py-2 rounded-lg text-lg shadow-sm font-medium text-slate-700 flex gap-2 items-center transition-all ${isMatch ? 'ring-2 ring-green-400 bg-green-50' : ''}`}>
+                                        <span className={`flex-none w-8 h-8 flex items-center justify-center rounded-full font-bold mr-3 ${isMatch ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}>{i+1}</span>
+                                        <span className="flex-1">{txt}</span>
+                                        {/* EDIT PENCIL ICON */}
+                                        <button onClick={() => handleEditItem(selectedBox.id, i, txt)} className="p-2 text-slate-400 hover:text-indigo-600">
+                                            <Icon d={Icons.pencil} className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="text-center border-t pt-6">
+                            <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
+                            <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
+                        </div>
+                    </div>
+                );
+
+                return (
+                    <div className="p-5 bg-slate-50 min-h-screen pb-32">
+                        <div className="flex justify-between items-center mb-6">
+                            <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap V2</h1>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowSettings(true)} className="p-3 bg-white text-slate-700 shadow rounded-full"><Icon d={Icons.settings} className="w-5 h-5" /></button>
+                                <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
+                            </div>
+                        </div>
+
+                        {/* ROOM FILTER CHIPS */}
+                        <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar mb-2">
+                            {uniqueRooms.map(r => (
+                                <button 
+                                    key={r}
+                                    onClick={() => setRoomFilter(r)}
+                                    className={`px-4 py-2 rounded-full font-bold text-sm whitespace-nowrap transition-colors ${roomFilter === r ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                                >
+                                    {r}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="relative mb-4">
+                            <input className="w-full p-3 pl-10 border rounded-xl shadow-sm" placeholder="Search Box Names..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                            <div className="absolute left-3 top-3 text-slate-400"><Icon d={Icons.search} /></div>
+                        </div>
+                        <div className="space-y-3">
+                            {filteredBoxes.map(box => (
+                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 box-card cursor-pointer">
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-bold text-lg text-slate-900">{box.name || "Untitled Box"}</h3>
+                                        <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {(box.items || []).slice(0, 3).map((item, i) => (
+                                            <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && (typeof item === 'string' ? item : item.text).toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>
+                                                {typeof item === 'string' ? item : item.text}
+                                            </span>
+                                        ))}
+                                        {(box.items || []).length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
+                    </div>
+                );
+            }
+
+            ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        
+        } catch (error) {
+            var err = document.getElementById('error-display');
+            if(err) {
+                err.style.display = 'block';
+                err.innerHTML += "<strong>React Crash:</strong> " + error.message + "<br><small>App failed to start.</small>";
+            }
+        }
+    </script>
+</body>
+</html>
