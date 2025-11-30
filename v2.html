@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Precision + Dev Engine)</title>
+    <title>BoxSnap V2 (Auto-Enhance)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -36,7 +36,6 @@
         .box-card:active { transform: scale(0.98); }
         .modal-prevent-touch { touch-action: none; }
         
-        /* PRECISION CROSSHAIR ANIMATION */
         @keyframes pulse-crosshair {
             0% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
             50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); text-shadow: 0 0 5px #fff; }
@@ -45,69 +44,33 @@
         
         .neon-box {
             position: absolute;
-            /* 1px Hairline Border for precision */
             border: 1px solid rgba(34, 197, 94, 0.8);
             z-index: 20;
             cursor: pointer;
         }
         
-        /* HORIZONTAL LINE of Crosshair */
         .neon-box::before {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 12px; height: 1px; /* Thin line */
-            background-color: #22c55e;
-            transform: translate(-50%, -50%);
-            animation: pulse-crosshair 2s infinite;
-            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+            content: ''; position: absolute; top: 50%; left: 50%; width: 12px; height: 1px;
+            background-color: #22c55e; transform: translate(-50%, -50%); animation: pulse-crosshair 2s infinite; box-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
 
-        /* VERTICAL LINE of Crosshair */
         .neon-box::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 1px; height: 12px; /* Thin line */
-            background-color: #22c55e;
-            transform: translate(-50%, -50%);
-            animation: pulse-crosshair 2s infinite;
-            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+            content: ''; position: absolute; top: 50%; left: 50%; width: 1px; height: 12px;
+            background-color: #22c55e; transform: translate(-50%, -50%); animation: pulse-crosshair 2s infinite; box-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
         
-        /* ACTIVE STATE (When clicked) */
-        .neon-box.active {
-            border-color: #facc15; /* Yellow */
-            border-width: 2px;
-            z-index: 30;
-        }
+        .neon-box.active { border-color: #facc15; border-width: 2px; z-index: 30; }
         .neon-box.active::before, .neon-box.active::after { background-color: #facc15; }
 
         .item-label {
-            position: absolute;
-            top: -35px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #facc15;
-            color: black;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 12px;
-            white-space: nowrap;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            z-index: 40;
-            border: 1px solid white;
+            position: absolute; top: -35px; left: 50%; transform: translateX(-50%);
+            background: #facc15; color: black; padding: 2px 8px; border-radius: 4px;
+            font-weight: bold; font-size: 12px; white-space: nowrap;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 40; border: 1px solid white;
         }
         .item-label::after {
-            content: '';
-            position: absolute;
-            bottom: -5px;
-            left: 50%;
-            transform: translateX(-50%);
-            border-width: 5px 5px 0;
-            border-style: solid;
-            border-color: #facc15 transparent transparent transparent;
+            content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+            border-width: 5px 5px 0; border-style: solid; border-color: #facc15 transparent transparent transparent;
         }
     </style>
 </head>
@@ -122,6 +85,11 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        if (!window.React || !window.ReactDOM) {
+            document.getElementById('loading-screen').innerHTML = "<h2 style='color:red'>Failed to load React.</h2><p>Please check your internet connection.</p>";
+            throw new Error("React Library missing");
+        }
+
         document.getElementById('loading-screen').style.display = 'none';
 
         try {
@@ -192,66 +160,30 @@
 
                 return (
                     <div className="fixed inset-0 z-[5000] bg-black flex flex-col h-full w-full modal-prevent-touch">
-                        
                         <div className="bg-white p-4 flex gap-3 items-center shadow-md z-[5001] shrink-0 h-20">
                             <div className="flex-1 relative">
-                                <input 
-                                    className="w-full p-3 pl-10 bg-slate-100 border border-slate-300 rounded-lg text-black font-bold outline-none" 
-                                    placeholder="Type to find..." 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
+                                <input className="w-full p-3 pl-10 bg-slate-100 border border-slate-300 rounded-lg text-black font-bold outline-none" placeholder="Type to find..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} autoFocus />
                                 <div className="absolute left-3 top-3.5 text-gray-500"><Icon d={Icons.search} /></div>
                                 {overlays.length > 0 && <div className="absolute right-3 top-2.5 bg-green-500 text-white px-2 py-1 rounded text-xs font-bold">{overlays.length} Found</div>}
                             </div>
                             <button onClick={onClose} className="p-3 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">Close</button>
                         </div>
-                        
-                        <div 
-                            className="flex-1 overflow-hidden relative flex items-center justify-center bg-black"
-                            onMouseDown={onMouseDown}
-                            onMouseMove={onMouseMove}
-                            onMouseUp={endDrag}
-                            onMouseLeave={endDrag}
-                            onTouchStart={onTouchStart}
-                            onTouchMove={onTouchMove}
-                            onTouchEnd={endDrag}
-                        >
-                            <div style={{ 
-                                transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoomLevel})`, 
-                                transition: isDragging ? 'none' : 'transform 0.1s ease-out',
-                                touchAction: 'none'
-                            }}>
+                        <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-black" onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={endDrag} onMouseLeave={endDrag} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={endDrag}>
+                            <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoomLevel})`, transition: isDragging ? 'none' : 'transform 0.1s ease-out', touchAction: 'none' }}>
                                 <div className="relative inline-block" style={{ fontSize: 0, lineHeight: 0 }}>
-                                    <img 
-                                        src={src} 
-                                        className="max-w-full max-h-[80vh] object-contain block" 
-                                        draggable="false" 
-                                    />
+                                    <img src={src} className="max-w-full max-h-[80vh] object-contain block" draggable="false" />
                                     {overlays.map((obj, i) => {
                                         const box = obj.coords;
                                         const txt = typeof obj.data === 'string' ? obj.data : obj.data.text;
                                         const isActive = activeBoxIndex === i;
                                         return (
-                                            <div 
-                                                key={i} 
-                                                onClick={(e) => { e.stopPropagation(); setActiveBoxIndex(isActive ? null : i); }}
-                                                className={`absolute neon-box ${isActive ? 'active' : ''}`} 
-                                                style={{ 
-                                                    top: `${box[0]}%`, 
-                                                    left: `${box[1]}%`, 
-                                                    height: `${box[2] - box[0]}%`, 
-                                                    width: `${box[3] - box[1]}%`,
-                                                    pointerEvents: 'auto'
-                                                }}
-                                            >
+                                            <div key={i} onClick={(e) => { e.stopPropagation(); setActiveBoxIndex(isActive ? null : i); }} className={`absolute neon-box ${isActive ? 'active' : ''}`} style={{ top: `${box[0]}%`, left: `${box[1]}%`, height: `${box[2] - box[0]}%`, width: `${box[3] - box[1]}%`, pointerEvents: 'auto' }}>
                                                 {isActive && <div className="item-label">{txt}</div>}
                                             </div>
                                         )
                                     })}
                                 </div>
                             </div>
-
                             <div className="absolute right-4 bottom-24 flex flex-col gap-2 z-50">
                                 <button onClick={() => setZoomLevel(prev => Math.min(prev + 0.5, 4))} className="bg-white text-black p-3 rounded-full shadow-lg font-bold border border-gray-300 w-12 h-12 flex items-center justify-center text-xl">+</button>
                                 <button onClick={() => { setZoomLevel(1); setOffset({x:0, y:0}); }} className="bg-white text-black p-3 rounded-full shadow-lg font-bold border border-gray-300 w-12 h-12 flex items-center justify-center text-xs">1x</button>
@@ -283,12 +215,8 @@
 
             function App() {
                 const [boxes, setBoxes] = useState(() => {
-                    try {
-                        const saved = localStorage.getItem('boxsnap_local_data');
-                        return saved ? JSON.parse(saved) : [];
-                    } catch { return []; }
+                    try { const saved = localStorage.getItem('boxsnap_local_data'); return saved ? JSON.parse(saved) : []; } catch { return []; }
                 });
-                
                 const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_key') || "");
                 const [view, setView] = useState('dashboard');
                 const [newBox, setNewBox] = useState({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
@@ -305,7 +233,6 @@
                 const [tempKey, setTempKey] = useState("");
                 const [activeOverlays, setActiveOverlays] = useState([]);
                 const [roomFilter, setRoomFilter] = useState('All'); 
-                
                 const [availableRooms, setAvailableRooms] = useState(() => {
                     const saved = localStorage.getItem('boxsnap_rooms');
                     return saved ? JSON.parse(saved) : ['Living Room', 'Kitchen', 'Master Bedroom', 'Guest Room', 'Garage', 'Basement', 'Storage Unit'];
@@ -315,377 +242,20 @@
                 const qrRef = useRef(null);
                 const importRef = useRef(null);
 
+                useEffect(() => {
+                    const params = new URLSearchParams(window.location.search);
+                    const boxId = params.get('box');
+                    if (boxId && boxes.length > 0) {
+                        const found = boxes.find(b => b.id === boxId);
+                        if (found) { setSelectedBox(found); setSelectedBoxImage((found.images && found.images[0]) ? found.images[0] : null); setView('detail'); }
+                    }
+                }, [boxes]);
+
                 useEffect(() => { localStorage.setItem('boxsnap_local_data', JSON.stringify(boxes)); }, [boxes]);
                 useEffect(() => { localStorage.setItem('boxsnap_rooms', JSON.stringify(availableRooms)); }, [availableRooms]);
+                useEffect(() => { if (showSettings) setTempKey(apiKey); }, [showSettings, apiKey]);
 
                 const saveKey = () => {
                     const val = tempKey.trim();
                     if (!val) return alert("Please enter a key.");
                     setApiKey(val); localStorage.setItem('gemini_key', val); alert("Key Saved!");
-                };
-                
-                useEffect(() => { if (showSettings) setTempKey(apiKey); }, [showSettings, apiKey]);
-
-                const compressImage = (file) => new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = (event) => {
-                        const img = new Image();
-                        img.src = event.target.result;
-                        img.onload = () => {
-                            const canvas = document.createElement('canvas');
-                            const MAX_WIDTH = 1024; 
-                            const scaleSize = MAX_WIDTH / img.width;
-                            canvas.width = MAX_WIDTH;
-                            canvas.height = img.height * scaleSize;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                            resolve(canvas.toDataURL('image/jpeg', 0.7));
-                        };
-                    };
-                });
-
-                const generateQRCode = (boxId) => {
-                     const url = `${window.location.href.split('?')[0]}?box=${boxId}`;
-                     if(qrRef.current) {
-                        qrRef.current.innerHTML = ""; 
-                        new QRCode(qrRef.current, { text: url, width: 128, height: 128 });
-                     }
-                };
-                
-                useEffect(() => { if (selectedBox && view === 'detail') setTimeout(() => generateQRCode(selectedBox.id), 100); }, [selectedBox, view]);
-
-                const handlePhoto = async (e) => {
-                    if(e.target.files[0]) {
-                        const f = e.target.files[0];
-                        setRawFile(f);
-                        const b64 = await compressImage(f);
-                        setNewBox(p => ({...p, images: [b64]}));
-                    }
-                };
-
-                const openBox = (box) => {
-                    setSelectedBox(box);
-                    if (searchQuery) { setLocalSearch(searchQuery); } else { setLocalSearch(''); }
-                    setSelectedBoxImage((box.images && box.images[0]) ? box.images[0] : null); 
-                    setView('detail');
-                };
-                
-                // ROOM CHANGE HANDLER (Supports Custom)
-                const handleRoomChange = (e) => {
-                    const val = e.target.value;
-                    if (val === '___NEW___') {
-                        const newRoom = prompt("Enter new location name:");
-                        if (newRoom && newRoom.trim()) {
-                            setAvailableRooms(prev => [...prev, newRoom.trim()]);
-                            setNewBox(p => ({...p, room: newRoom.trim()}));
-                        }
-                    } else {
-                        setNewBox(p => ({...p, room: val}));
-                    }
-                };
-
-                const handleEditItem = (boxId, itemIndex, oldText) => {
-                    const newText = prompt("Edit Item Name:", oldText);
-                    if (newText !== null && newText.trim() !== "") {
-                        setBoxes(prev => prev.map(b => {
-                            if (b.id !== boxId) return b;
-                            const newItems = [...b.items];
-                            if (typeof newItems[itemIndex] === 'string') {
-                                newItems[itemIndex] = newText;
-                            } else {
-                                newItems[itemIndex] = { ...newItems[itemIndex], text: newText };
-                            }
-                            return { ...b, items: newItems };
-                        }));
-                        if (selectedBox && selectedBox.id === boxId) {
-                            setSelectedBox(prev => {
-                                const newItems = [...prev.items];
-                                if (typeof newItems[itemIndex] === 'string') newItems[itemIndex] = newText;
-                                else newItems[itemIndex] = { ...newItems[itemIndex], text: newText };
-                                return { ...prev, items: newItems };
-                            });
-                        }
-                    }
-                };
-
-                const analyze = async () => {
-                    if (!apiKey) { alert("Enter API Key first."); setShowSettings(true); return; }
-                    if (!newBox.images[0]) return alert("Add photo first.");
-                    setIsAnalyzing(true);
-                    try {
-                        const b64 = newBox.images[0].split(',')[1]; 
-                        const prompt = `Analyze this image of items.
-                        1. ORDER: Top-Left to Bottom-Right.
-                        2. COORDINATES: Return the TIGHTEST POSSIBLE bounding box [ymin, xmin, ymax, xmax] (0-100 scale). Crop closely to the item, excluding background.
-                        3. TEXT PRIORITY: Use labels if visible.
-                        4. EXHAUSTIVE: List everything.
-                        Return ONLY JSON: { "items": [ { "text": "Item Name", "box_2d": [10, 10, 20, 20] } ], "name": "Suggested Box Name" }`;
-                        
-                        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                            method: 'POST', headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: b64 } }] }] })
-                        });
-                        const data = await res.json();
-                        if (data.error) throw new Error(data.error.message);
-                        const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
-                        const normalizedItems = (json.items || []).map(i => typeof i === 'string' ? { text: i, box_2d: null } : i);
-                        setNewBox(p => ({ ...p, items: [...p.items, ...normalizedItems], name: p.name || json.name || "" }));
-                    } catch (e) { alert("AI Error: " + e.message); }
-                    setIsAnalyzing(false);
-                };
-
-                const saveBox = () => {
-                    if (!newBox.name) return alert("Enter 'Box Name'.");
-                    const newId = `box_${Date.now()}`;
-                    const boxToSave = { ...newBox, id: newId, createdAt: Date.now() };
-                    setBoxes(prev => [boxToSave, ...prev]);
-                    setNewBox({ name: '', room: availableRooms.includes(newBox.room) ? newBox.room : availableRooms[0], items: [], images: [], status: 'Packing' });
-                    setRawFile(null);
-                    alert("Saved!");
-                    setView('dashboard');
-                };
-
-                const deleteBox = (id) => {
-                    if(confirm("Delete this box?")) {
-                        setBoxes(prev => prev.filter(b => b.id !== id));
-                        if (selectedBox && selectedBox.id === id) { setSelectedBox(null); setView('dashboard'); }
-                    }
-                };
-
-                const handleScan = (txt) => {
-                    setShowScanner(false);
-                    const boxId = txt.includes('?box=') ? txt.split('?box=')[1] : txt;
-                    const found = boxes.find(b => b.id === boxId);
-                    if (found) { openBox(found); } else { alert("Box not found."); }
-                };
-
-                const exportData = async () => {
-                    const fileName = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
-                    const json = JSON.stringify(boxes, null, 2);
-                    try {
-                        const file = new File([json], fileName, { type: "application/json" });
-                        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'BoxSnap Backup', text: 'Backup file' }); return; }
-                    } catch (err) { console.log("Share failed", err); }
-                    const blob = new Blob([json], {type: "application/json"});
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                };
-
-                const importData = (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        try {
-                            const imported = JSON.parse(ev.target.result);
-                            if (Array.isArray(imported)) { if(confirm(`Replace with ${imported.length} boxes?`)) { setBoxes(imported); alert("Loaded."); setShowSettings(false); } } else alert("Invalid file.");
-                        } catch(err) { alert("Error reading file."); }
-                    };
-                    reader.readAsText(file);
-                };
-
-                const filteredBoxes = boxes.filter(b => {
-                    if (roomFilter !== 'All' && b.room !== roomFilter) return false;
-                    const q = searchQuery.toLowerCase();
-                    if (!q) return true;
-                    const name = (b.name || "").toLowerCase();
-                    const room = (b.room || "").toLowerCase();
-                    const items = (b.items || []).map(i => (typeof i === 'string' ? i : i.text).toLowerCase());
-                    return name.includes(q) || room.includes(q) || items.some(i => i.includes(q));
-                });
-
-                const uniqueRooms = ['All', ...availableRooms.filter(r => boxes.some(b => b.room === r))];
-
-                if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
-                if (showFullImage) return <ImageModal src={previewImage} onClose={() => { setShowFullImage(false); setPreviewImage(null); }} boxItems={selectedBox?.items || []} initialSearch={localSearch} />;
-
-                if (showSettings) return (
-                    <div className="p-6 bg-white min-h-screen">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-slate-900">Settings</h2>
-                            <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} /></button>
-                        </div>
-                        <div className="mb-6">
-                            <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
-                            <div className="flex gap-2">
-                                <input className="flex-1 p-3 border rounded-xl font-mono text-sm" type="password" value={tempKey} onChange={(e) => setTempKey(e.target.value)} placeholder="AIza..." />
-                                <button onClick={saveKey} className="bg-green-600 text-white px-4 rounded-xl font-bold text-sm">Save</button>
-                            </div>
-                            <p className={`text-xs mt-2 ${apiKey ? 'text-green-600 font-bold' : 'text-red-500'}`}>{apiKey ? '✓ Key currently active' : '⚠ No key saved'}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 mb-6">
-                            <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center text-center"><Icon d={Icons.download} className="mb-1" /> Backup</button>
-                            <button onClick={() => importRef.current.click()} className="p-4 border-2 border-green-100 bg-green-50 rounded-xl text-green-700 font-bold flex flex-col items-center"><Icon d={Icons.upload} className="mb-1" /> Restore</button>
-                            <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
-                        </div>
-                    </div>
-                );
-
-                if (view === 'add') return (
-                    <div className="p-6 bg-white min-h-screen animate-in flex flex-col pb-32">
-                        <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900"><span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box</div>
-                        <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
-                        <div className="relative mb-4">
-                            {newBox.images[0] ? (
-                                <div className="flex flex-col gap-2">
-                                    <div className="h-56 bg-black rounded-xl overflow-hidden relative cursor-zoom-in" onClick={() => { setPreviewImage(newBox.images[0]); setLocalSearch(''); setShowFullImage(true); }}>
-                                        <img src={newBox.images[0]} className="w-full h-full object-contain" />
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                            <span className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-full font-bold shadow-xl border border-white/20 flex gap-2 items-center">
-                                                <Icon d={Icons.zoom} className="w-5 h-5"/> Open Zoom View
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => fileRef.current.click()} className="w-full py-3 bg-slate-100 text-slate-500 font-bold rounded-xl border border-slate-200 flex justify-center items-center gap-2"><Icon d={Icons.camera} className="w-5 h-5"/> Retake Photo</button>
-                                </div>
-                            ) : (
-                                <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 cursor-pointer">
-                                    <div className="flex flex-col items-center"><Icon d={Icons.camera} className="w-8 h-8"/><span className="font-bold text-sm mt-1">Tap to Add Photo</span></div>
-                                </div>
-                            )}
-                        </div>
-                        <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
-                            {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
-                        </button>
-                        <div className="space-y-4 flex-1">
-                            <input className="w-full p-3 border border-slate-200 rounded-xl text-lg" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                            <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
-                                <div className="flex flex-col gap-2 mb-3">
-                                    {newBox.items.map((item, i) => (
-                                        <div key={i} className="bg-white border border-slate-300 px-4 py-3 rounded-lg text-lg flex justify-between items-center shadow-sm">
-                                            <span className="flex-none bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold mr-3">{i+1}</span>
-                                            <span className="font-medium text-slate-800">{typeof item === 'string' ? item : item.text}</span>
-                                            <button onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))} className="text-red-400 p-1 hover:text-red-600 ml-auto"><Icon d={Icons.close} className="w-5 h-5"/></button>
-                                        </div>
-                                    ))}
-                                </div>
-                                <input className="w-full bg-transparent text-lg outline-none p-2 border-b-2 border-transparent focus:border-indigo-200 transition-colors" placeholder="+ Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, {text: e.target.value, box_2d: null}]})); e.target.value = ''; }}} />
-                            </div>
-                            
-                            {/* CUSTOM ROOM SELECT */}
-                            <select className="w-full p-3 border border-slate-200 rounded-xl bg-white text-lg" value={newBox.room} onChange={handleRoomChange}>
-                                {availableRooms.map(r => <option key={r} value={r}>{r}</option>)}
-                                <option value="___NEW___" className="font-bold text-indigo-600">+ Add New Location...</option>
-                            </select>
-                        </div>
-                        <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2 text-lg">Save Box</button>
-                    </div>
-                );
-
-                if (view === 'detail' && selectedBox) return (
-                    <div className="p-6 bg-white min-h-screen animate-in">
-                        <div className="flex justify-between items-center mb-4">
-                            <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
-                            <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
-                        </div>
-                        
-                        <div className="space-y-2 mb-4">
-                            <div onClick={() => { setPreviewImage(selectedBoxImage); setShowFullImage(true); }} className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border flex items-center justify-center text-slate-300 relative cursor-pointer relative shadow-lg">
-                                {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
-                                
-                                {selectedBoxImage && <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                    <span className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-full font-bold shadow-xl border border-white/20 flex gap-2 items-center">
-                                        <Icon d={Icons.zoom} className="w-5 h-5"/> Open Zoom View
-                                    </span>
-                                </div>}
-                                
-                                {activeOverlays.map((box, i) => (
-                                    <div key={i} className="absolute neon-box" style={{ top: `${box[0]}%`, left: `${box[1]}%`, height: `${box[2] - box[0]}%`, width: `${box[3] - box[1]}%` }}></div>
-                                ))}
-                            </div>
-                            
-                            <div className="relative">
-                                <input 
-                                    className="w-full p-3 pl-10 border-2 border-indigo-100 rounded-xl bg-indigo-50 focus:bg-white focus:border-indigo-500 transition-colors" 
-                                    placeholder="Find item in image..." 
-                                    value={localSearch}
-                                    onChange={e => setLocalSearch(e.target.value)}
-                                />
-                                <div className="absolute left-3 top-3 text-indigo-400"><Icon d={Icons.search} /></div>
-                            </div>
-                            {selectedBox.items && selectedBox.items.some(i => typeof i === 'string') && (
-                                <p className="text-xs text-orange-500 text-center">⚠ Some items lack location data. Re-scan for highlights.</p>
-                            )}
-                        </div>
-
-                        <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
-                        <p className="text-slate-500 mb-6">{selectedBox.room}</p>
-                        
-                        <div className="bg-slate-50 p-4 rounded-xl border mb-6 flex flex-col gap-2">
-                            {(selectedBox.items || []).map((item, i) => {
-                                const txt = typeof item === 'string' ? item : item.text;
-                                const isMatch = localSearch && txt.toLowerCase().includes(localSearch.toLowerCase());
-                                return (
-                                    <div key={i} className={`bg-white border border-slate-200 px-3 py-2 rounded-lg text-lg shadow-sm font-medium text-slate-700 flex gap-2 items-center transition-all ${isMatch ? 'ring-2 ring-green-400 bg-green-50' : ''}`}>
-                                        <span className={`flex-none w-8 h-8 flex items-center justify-center rounded-full font-bold mr-3 ${isMatch ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}>{i+1}</span>
-                                        <span className="flex-1">{txt}</span>
-                                        <button onClick={() => handleEditItem(selectedBox.id, i, txt)} className="p-2 text-slate-400 hover:text-indigo-600"><Icon d={Icons.pencil} className="w-4 h-4" /></button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="text-center border-t pt-6">
-                            <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
-                            <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
-                        </div>
-                    </div>
-                );
-
-                return (
-                    <div className="p-5 bg-slate-50 min-h-screen pb-32">
-                        <div className="flex justify-between items-center mb-6">
-                            <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap V2</h1>
-                            <div className="flex gap-2">
-                                <button onClick={() => setShowSettings(true)} className="p-3 bg-white text-slate-700 shadow rounded-full"><Icon d={Icons.settings} className="w-5 h-5" /></button>
-                                <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
-                            </div>
-                        </div>
-
-                        {/* ROOM CHIPS */}
-                        <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar mb-2">
-                            {uniqueRooms.map(r => (
-                                <button key={r} onClick={() => setRoomFilter(r)} className={`px-4 py-2 rounded-full font-bold text-sm whitespace-nowrap transition-colors ${roomFilter === r ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>{r}</button>
-                            ))}
-                        </div>
-
-                        <div className="relative mb-4">
-                            <input className="w-full p-3 pl-10 border rounded-xl shadow-sm" placeholder="Search Box Names..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                            <div className="absolute left-3 top-3 text-slate-400"><Icon d={Icons.search} /></div>
-                        </div>
-                        <div className="space-y-3">
-                            {filteredBoxes.map(box => (
-                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 box-card cursor-pointer">
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="font-bold text-lg text-slate-900">{box.name || "Untitled Box"}</h3>
-                                        <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {(box.items || []).slice(0, 3).map((item, i) => (
-                                            <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && (typeof item === 'string' ? item : item.text).toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>
-                                                {typeof item === 'string' ? item : item.text}
-                                            </span>
-                                        ))}
-                                        {(box.items || []).length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
-                    </div>
-                );
-            }
-
-            ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-        
-        } catch (error) {
-            var err = document.getElementById('error-display');
-            if(err) {
-                err.style.display = 'block';
-                err.innerHTML += "<strong>React Crash:</strong> " + error.message + "<br><small>App failed to start.</small>";
-            }
-        }
-    </script>
-</body>
-</html>
