@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Visual Search)</title>
+    <title>BoxSnap V2 (Smart Visuals)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -82,12 +82,25 @@
                 zoom: "M15 15l6 6m-11-4a7 7 0 110-14 7 7 0 010 14z"
             };
 
-            // --- COMPONENT: TAP-TO-ZOOM + OVERLAY ---
-            const ImageModal = ({ src, onClose, overlays = [] }) => {
+            // --- COMPONENT: TAP-TO-ZOOM MODAL WITH SEARCH BAR ---
+            const ImageModal = ({ src, onClose, boxItems = [], initialSearch = '' }) => {
                 const [zoomed, setZoomed] = useState(false);
                 const [position, setPosition] = useState({ x: 0, y: 0 });
                 const [start, setStart] = useState({ x: 0, y: 0 });
                 const [isDragging, setIsDragging] = useState(false);
+                const [searchTerm, setSearchTerm] = useState(initialSearch);
+
+                // Calculate Overlays inside Modal
+                const overlays = React.useMemo(() => {
+                    if (!searchTerm.trim()) return [];
+                    return boxItems
+                        .filter(i => {
+                            const txt = typeof i === 'string' ? i : i.text;
+                            return txt.toLowerCase().includes(searchTerm.toLowerCase());
+                        })
+                        .map(i => (typeof i === 'object' && i.box_2d) ? i.box_2d : null)
+                        .filter(Boolean);
+                }, [searchTerm, boxItems]);
 
                 const handleTouchStart = (e) => {
                     if (!zoomed) return;
@@ -115,6 +128,7 @@
                         <button onClick={onClose} className="absolute top-4 right-4 z-50 text-white p-3 bg-gray-800 rounded-full opacity-80 shadow-lg">
                             <Icon d={Icons.close} className="w-6 h-6" />
                         </button>
+                        
                         <div className="w-full h-full flex items-center justify-center overflow-hidden relative" onClick={onClose}>
                             <div style={{ 
                                 transform: `scale(${zoomed ? 2.5 : 1}) translate(${position.x / 2.5}px, ${position.y / 2.5}px)`, 
@@ -126,23 +140,25 @@
                             }} onClick={toggleZoom} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                                 <img src={src} className="max-w-full max-h-full object-contain block" style={{maxWidth: '100vw', maxHeight: '100vh'}} />
                                 
-                                {/* OVERLAYS - SCALED WITH IMAGE */}
                                 {overlays.map((box, i) => (
-                                    <div key={i} className="absolute neon-box"
-                                        style={{
-                                            top: `${box[0]}%`,
-                                            left: `${box[1]}%`,
-                                            height: `${box[2] - box[0]}%`,
-                                            width: `${box[3] - box[1]}%`
-                                        }}
-                                    ></div>
+                                    <div key={i} className="absolute neon-box" style={{ top: `${box[0]}%`, left: `${box[1]}%`, height: `${box[2] - box[0]}%`, width: `${box[3] - box[1]}%` }}></div>
                                 ))}
                             </div>
                         </div>
-                        <div className="absolute bottom-10 left-0 right-0 text-center pointer-events-none">
-                            <span className="bg-black bg-opacity-50 text-white px-4 py-2 rounded-full text-sm font-bold">
-                                {zoomed ? "Drag to Pan" : "Tap to Zoom"}
-                            </span>
+
+                        {/* FLOATING SEARCH BAR IN ZOOM MODE */}
+                        <div className="absolute bottom-10 left-4 right-4 pointer-events-auto">
+                            <div className="relative max-w-md mx-auto">
+                                <input 
+                                    className="w-full p-3 pl-10 bg-white bg-opacity-90 backdrop-blur border-2 border-transparent focus:border-green-500 rounded-full shadow-xl text-black font-bold outline-none" 
+                                    placeholder="Type to find neon highlight..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onClick={(e) => e.stopPropagation()} // Prevent zoom when clicking input
+                                />
+                                <div className="absolute left-3 top-3 text-gray-500"><Icon d={Icons.search} /></div>
+                                {overlays.length > 0 && <div className="absolute -top-10 left-0 right-0 text-center"><span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow animate-bounce">{overlays.length} Found!</span></div>}
+                            </div>
                         </div>
                     </div>
                 );
@@ -183,8 +199,8 @@
                 const [selectedBoxImage, setSelectedBoxImage] = useState(null);
                 const [isAnalyzing, setIsAnalyzing] = useState(false);
                 const [showScanner, setShowScanner] = useState(false);
-                const [searchQuery, setSearchQuery] = useState(''); // Dashboard Search
-                const [localSearch, setLocalSearch] = useState(''); // Local (In-Box) Search
+                const [searchQuery, setSearchQuery] = useState(''); 
+                const [localSearch, setLocalSearch] = useState(''); 
                 const [showSettings, setShowSettings] = useState(false);
                 const [showFullImage, setShowFullImage] = useState(false); 
                 const [previewImage, setPreviewImage] = useState(null);
@@ -233,202 +249,4 @@
                      }
                 };
                 
-                useEffect(() => { if (selectedBox && view === 'detail') setTimeout(() => generateQRCode(selectedBox.id), 100); }, [selectedBox, view]);
-
-                // --- FILTER LOGIC FOR NEON BOXES ---
-                useEffect(() => {
-                    if (selectedBox && localSearch.trim() !== '') {
-                        const term = localSearch.toLowerCase();
-                        // Find matching items that have coordinates
-                        const matches = selectedBox.items
-                            .filter(i => {
-                                const txt = typeof i === 'string' ? i : i.text;
-                                return txt.toLowerCase().includes(term);
-                            })
-                            .map(i => (typeof i === 'object' && i.box_2d) ? i.box_2d : null)
-                            .filter(Boolean);
-                        setActiveOverlays(matches);
-                    } else {
-                        setActiveOverlays([]);
-                    }
-                }, [localSearch, selectedBox]);
-
-                const handlePhoto = async (e) => {
-                    if(e.target.files[0]) {
-                        const f = e.target.files[0];
-                        setRawFile(f);
-                        const b64 = await compressImage(f);
-                        setNewBox(p => ({...p, images: [b64]}));
-                    }
-                };
-
-                const openBox = (box) => {
-                    setSelectedBox(box);
-                    setLocalSearch(''); // Reset local search
-                    setActiveOverlays([]);
-                    setSelectedBoxImage((box.images && box.images[0]) ? box.images[0] : null); 
-                    setView('detail');
-                };
-                
-                const analyze = async () => {
-                    if (!apiKey) { alert("Enter API Key first."); setShowSettings(true); return; }
-                    if (!newBox.images[0]) return alert("Add photo first.");
-                    setIsAnalyzing(true);
-                    try {
-                        const b64 = newBox.images[0].split(',')[1]; 
-                        // --- PROMPT WITH COORDINATES ---
-                        const prompt = `Analyze this image of items.
-                        1. ORDER: Top-Left to Bottom-Right.
-                        2. COORDINATES: For EVERY item, return [ymin, xmin, ymax, xmax] (0-100 scale).
-                        3. TEXT PRIORITY: Use labels if visible.
-                        4. EXHAUSTIVE: List everything.
-                        Return ONLY JSON: { "items": [ { "text": "Item Name", "box_2d": [10, 10, 20, 20] } ], "name": "Suggested Box Name" }`;
-                        
-                        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                            method: 'POST', headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: b64 } }] }] })
-                        });
-                        const data = await res.json();
-                        if (data.error) throw new Error(data.error.message);
-                        const json = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
-                        
-                        // normalize items to ensure object format
-                        const normalizedItems = (json.items || []).map(i => 
-                            typeof i === 'string' ? { text: i, box_2d: null } : i
-                        );
-                        
-                        setNewBox(p => ({ ...p, items: [...p.items, ...normalizedItems], name: p.name || json.name || "" }));
-                    } catch (e) { alert("AI Error: " + e.message); }
-                    setIsAnalyzing(false);
-                };
-
-                const saveBox = () => {
-                    if (!newBox.name) return alert("Enter 'Box Name'.");
-                    const newId = `box_${Date.now()}`;
-                    const boxToSave = { ...newBox, id: newId, createdAt: Date.now() };
-                    setBoxes(prev => [boxToSave, ...prev]);
-                    setNewBox({ name: '', room: 'Living Room', items: [], images: [], status: 'Packing' });
-                    setRawFile(null);
-                    alert("Saved!");
-                    setView('dashboard');
-                };
-
-                const deleteBox = (id) => {
-                    if(confirm("Delete this box?")) {
-                        setBoxes(prev => prev.filter(b => b.id !== id));
-                        if (selectedBox && selectedBox.id === id) { setSelectedBox(null); setView('dashboard'); }
-                    }
-                };
-
-                const handleScan = (txt) => {
-                    setShowScanner(false);
-                    const boxId = txt.includes('?box=') ? txt.split('?box=')[1] : txt;
-                    const found = boxes.find(b => b.id === boxId);
-                    if (found) { openBox(found); } else { alert("Box not found."); }
-                };
-
-                const exportData = async () => {
-                    const fileName = `boxsnap_backup_${new Date().toISOString().slice(0,10)}.json`;
-                    const json = JSON.stringify(boxes, null, 2);
-                    try {
-                        const file = new File([json], fileName, { type: "application/json" });
-                        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'BoxSnap Backup', text: 'Backup file' }); return; }
-                    } catch (err) { console.log("Share failed", err); }
-                    const blob = new Blob([json], {type: "application/json"});
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                };
-
-                const importData = (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        try {
-                            const imported = JSON.parse(ev.target.result);
-                            if (Array.isArray(imported)) { if(confirm(`Replace with ${imported.length} boxes?`)) { setBoxes(imported); alert("Loaded."); setShowSettings(false); } } else alert("Invalid file.");
-                        } catch(err) { alert("Error reading file."); }
-                    };
-                    reader.readAsText(file);
-                };
-
-                const filteredBoxes = boxes.filter(b => {
-                    const q = searchQuery.toLowerCase();
-                    if (!q) return true;
-                    const name = (b.name || "").toLowerCase();
-                    const room = (b.room || "").toLowerCase();
-                    const items = (b.items || []).map(i => (typeof i === 'string' ? i : i.text).toLowerCase());
-                    return name.includes(q) || room.includes(q) || items.some(i => i.includes(q));
-                });
-
-                // --- RENDERS ---
-                if (showScanner) return <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />;
-                if (showFullImage) return <ImageModal src={previewImage} onClose={() => { setShowFullImage(false); setPreviewImage(null); }} overlays={activeOverlays} />;
-
-                if (showSettings) return (
-                    <div className="p-6 bg-white min-h-screen">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-slate-900">Settings</h2>
-                            <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.check} /></button>
-                        </div>
-                        <div className="mb-6">
-                            <label className="block font-bold text-xs text-slate-500 uppercase mb-2">Gemini API Key</label>
-                            <div className="flex gap-2">
-                                <input className="flex-1 p-3 border rounded-xl font-mono text-sm" type="password" value={tempKey} onChange={(e) => setTempKey(e.target.value)} placeholder="AIza..." />
-                                <button onClick={saveKey} className="bg-green-600 text-white px-4 rounded-xl font-bold text-sm">Save</button>
-                            </div>
-                            <p className={`text-xs mt-2 ${apiKey ? 'text-green-600 font-bold' : 'text-red-500'}`}>{apiKey ? '✓ Key currently active' : '⚠ No key saved'}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 mb-6">
-                            <button onClick={exportData} className="p-4 border-2 border-blue-100 bg-blue-50 rounded-xl text-blue-700 font-bold flex flex-col items-center text-center"><Icon d={Icons.download} className="mb-1" /> Backup</button>
-                            <button onClick={() => importRef.current.click()} className="p-4 border-2 border-green-100 bg-green-50 rounded-xl text-green-700 font-bold flex flex-col items-center"><Icon d={Icons.upload} className="mb-1" /> Restore</button>
-                            <input type="file" accept=".json" ref={importRef} onChange={importData} className="hidden" />
-                        </div>
-                    </div>
-                );
-
-                if (view === 'add') return (
-                    <div className="p-6 bg-white min-h-screen animate-in flex flex-col pb-32">
-                        <div className="flex items-center gap-2 mb-6 font-bold text-xl text-slate-900"><span onClick={() => setView('dashboard')}><Icon d={Icons.arrowLeft}/></span> Pack Box</div>
-                        <input type="file" ref={fileRef} onChange={handlePhoto} className="hidden" accept="image/*" />
-                        <div className="relative mb-4">
-                            {newBox.images[0] ? (
-                                <div className="flex flex-col gap-2">
-                                    <div className="h-56 bg-black rounded-xl overflow-hidden relative cursor-zoom-in" onClick={() => { setPreviewImage(newBox.images[0]); setLocalSearch(''); setShowFullImage(true); }}>
-                                        <img src={newBox.images[0]} className="w-full h-full object-contain" />
-                                        <div className="absolute bottom-3 right-3 bg-white text-black text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-lg pointer-events-none"><Icon d={Icons.zoom} className="w-3 h-3"/> Tap to Zoom</div>
-                                    </div>
-                                    <button onClick={() => fileRef.current.click()} className="w-full py-3 bg-slate-100 text-slate-500 font-bold rounded-xl border border-slate-200 flex justify-center items-center gap-2"><Icon d={Icons.camera} className="w-5 h-5"/> Retake Photo</button>
-                                </div>
-                            ) : (
-                                <div onClick={() => fileRef.current.click()} className="h-40 bg-slate-100 rounded-xl border-2 border-dashed flex items-center justify-center text-slate-400 cursor-pointer">
-                                    <div className="flex flex-col items-center"><Icon d={Icons.camera} className="w-8 h-8"/><span className="font-bold text-sm mt-1">Tap to Add Photo</span></div>
-                                </div>
-                            )}
-                        </div>
-                        <button onClick={analyze} disabled={!newBox.images[0] || isAnalyzing || !apiKey} className={`w-full py-3 rounded-xl font-bold shadow mb-6 flex justify-center items-center gap-2 ${newBox.images[0] && apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-600 disabled:cursor-not-allowed'}`}>
-                            {isAnalyzing ? "Reading Labels..." : <><Icon d={Icons.sparkles} className="w-5 h-5" /> Detect Details (AI)</>}
-                        </button>
-                        <div className="space-y-4 flex-1">
-                            <input className="w-full p-3 border border-slate-200 rounded-xl text-lg" placeholder="Box Name" value={newBox.name} onChange={e => setNewBox({...newBox, name: e.target.value})} />
-                            <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 min-h-[3rem]">
-                                <div className="flex flex-col gap-2 mb-3">
-                                    {newBox.items.map((item, i) => (
-                                        <div key={i} className="bg-white border border-slate-300 px-4 py-3 rounded-lg text-lg flex justify-between items-center shadow-sm">
-                                            <span className="flex-none bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold mr-3">{i+1}</span>
-                                            <span className="font-medium text-slate-800">{typeof item === 'string' ? item : item.text}</span>
-                                            <button onClick={() => setNewBox(p => ({...p, items: p.items.filter((_,ix)=>ix!==i)}))} className="text-red-400 p-1 hover:text-red-600 ml-auto"><Icon d={Icons.close} className="w-5 h-5"/></button>
-                                        </div>
-                                    ))}
-                                </div>
-                                <input className="w-full bg-transparent text-lg outline-none p-2 border-b-2 border-transparent focus:border-indigo-200 transition-colors" placeholder="+ Type item & Enter..." onKeyDown={e => { if(e.key === 'Enter' && e.target.value) { setNewBox(p => ({...p, items: [...p.items, {text: e.target.value, box_2d: null}]})); e.target.value = ''; }}} />
-                            </div>
-                            <select className="w-full p-3 border border-slate-200 rounded-xl bg-white text-lg" value={newBox.room} onChange={e => setNewBox({...newBox, room: e.target.value})}>{ROOMS.map(r => <option key={r}>{r}</option>)}</select>
-                        </div>
-                        <button onClick={saveBox} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold mt-6 flex justify-center gap-2 text-lg">Save Box</button>
-                    </div>
-                );
-
-                if (view === 'detail' && selectedBox) return (
-                    <div className="p-6 bg
+                useEffect(() => { if (selectedBox && view === 'detail') setTimeout(()
