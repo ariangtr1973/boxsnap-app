@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoxSnap V2 (Split Layout)</title>
+    <title>BoxSnap V2 (Bottom Search)</title>
     
     <script>
         window.onerror = function(msg, url, line) {
@@ -82,7 +82,6 @@
                 zoom: "M15 15l6 6m-11-4a7 7 0 110-14 7 7 0 010 14z"
             };
 
-            // --- COMPONENT: SPLIT-VIEW MODAL (FIXED) ---
             const ImageModal = ({ src, onClose, boxItems = [], initialSearch = '' }) => {
                 const [zoomed, setZoomed] = useState(false);
                 const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -123,28 +122,10 @@
                 };
 
                 return (
-                    <div className="fixed inset-0 z-[5000] bg-black flex flex-col h-full w-full">
+                    <div className="fixed inset-0 z-[5000] bg-black flex flex-col h-full w-full modal-prevent-touch">
                         
-                        {/* 1. TOP BAR (FIXED HEIGHT, WHITE) */}
-                        <div className="bg-white p-4 flex gap-3 items-center shadow-md z-[5001] shrink-0 h-20">
-                            <div className="flex-1 relative">
-                                <input 
-                                    className="w-full p-3 pl-10 bg-slate-100 border border-slate-300 rounded-lg text-black font-bold outline-none" 
-                                    placeholder="Type to find..." 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    autoFocus
-                                />
-                                <div className="absolute left-3 top-3.5 text-gray-500"><Icon d={Icons.search} /></div>
-                                {overlays.length > 0 && <div className="absolute right-3 top-2.5 bg-green-500 text-white px-2 py-1 rounded text-xs font-bold">{overlays.length} Found</div>}
-                            </div>
-                            <button onClick={onClose} className="p-3 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">
-                                Close
-                            </button>
-                        </div>
-                        
-                        {/* 2. IMAGE AREA (TAKES REMAINING SPACE) */}
-                        <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-black touch-none" onClick={onClose}>
+                        {/* 1. IMAGE AREA (Top 85%) */}
+                        <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-black" onClick={onClose}>
                             <div style={{ 
                                 transform: `scale(${zoomed ? 2.5 : 1}) translate(${position.x / 2.5}px, ${position.y / 2.5}px)`, 
                                 transition: isDragging ? 'none' : 'transform 0.2s ease-out', 
@@ -153,16 +134,34 @@
                                 position: 'relative',
                                 display: 'inline-block'
                             }} onClick={toggleZoom} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-                                <img src={src} className="max-w-full max-h-[80vh] object-contain block" />
+                                <img src={src} className="max-w-full max-h-[85vh] object-contain block" />
                                 {overlays.map((box, i) => (
                                     <div key={i} className="absolute neon-box" style={{ top: `${box[0]}%`, left: `${box[1]}%`, height: `${box[2] - box[0]}%`, width: `${box[3] - box[1]}%` }}></div>
                                 ))}
                             </div>
+                            
+                            {/* CLOSE BUTTON (Top Right) */}
+                            <button onClick={onClose} className="absolute top-4 right-4 z-[5002] bg-black bg-opacity-50 text-white p-3 rounded-full border border-white/20">
+                                <Icon d={Icons.close} className="w-6 h-6" />
+                            </button>
                         </div>
 
-                        {/* ZOOM TIP */}
-                        <div className="bg-black text-center p-2 text-white text-xs font-bold shrink-0">
-                            {zoomed ? "Drag to Pan • Tap to Zoom Out" : "Tap Image to Zoom In"}
+                        {/* 2. BOTTOM BAR (Fixed 15%, White, Always Visible) */}
+                        <div className="bg-white p-4 pb-8 flex flex-col gap-2 shadow-[0_-4px_20px_rgba(0,0,0,0.2)] z-[5001] shrink-0">
+                            <div className="relative">
+                                <input 
+                                    className="w-full p-3 pl-10 bg-slate-100 border-2 border-indigo-200 rounded-xl text-black font-bold outline-none text-lg" 
+                                    placeholder="Type item name to highlight..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    autoFocus
+                                />
+                                <div className="absolute left-3 top-4 text-indigo-500"><Icon d={Icons.search} /></div>
+                                {overlays.length > 0 && <div className="absolute right-3 top-3 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow animate-pulse">{overlays.length} Found!</div>}
+                            </div>
+                            <div className="text-center text-xs text-slate-400 font-bold uppercase tracking-wider">
+                                {zoomed ? "Drag to Pan" : "Tap Image to Zoom"}
+                            </div>
                         </div>
                     </div>
                 );
@@ -450,4 +449,102 @@
                     <div className="p-6 bg-white min-h-screen animate-in">
                         <div className="flex justify-between items-center mb-4">
                             <button onClick={() => setView('dashboard')} className="p-2 bg-slate-100 rounded-full"><Icon d={Icons.arrowLeft} /></button>
-                            <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-70
+                            <button onClick={() => deleteBox(selectedBox.id)} className="text-red-500 hover:text-red-700 p-2 rounded-full"><Icon d={Icons.trash} /></button>
+                        </div>
+                        
+                        <div className="space-y-2 mb-4">
+                            <div onClick={() => { setPreviewImage(selectedBoxImage); setShowFullImage(true); }} className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden border flex items-center justify-center text-slate-300 relative cursor-pointer relative">
+                                {selectedBoxImage ? <img src={selectedBoxImage} className="w-full h-full object-cover" /> : <Icon d={Icons.package} className="w-12 h-12" />}
+                                {selectedBoxImage && <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full flex gap-1 items-center"><Icon d={Icons.zoom} className="w-3 h-3"/> Zoom</div>}
+                                
+                                {activeOverlays.map((box, i) => (
+                                    <div key={i} className="absolute neon-box" style={{ top: `${box[0]}%`, left: `${box[1]}%`, height: `${box[2] - box[0]}%`, width: `${box[3] - box[1]}%` }}></div>
+                                ))}
+                            </div>
+                            
+                            {/* LOCAL SEARCH BAR */}
+                            <div className="relative">
+                                <input 
+                                    className="w-full p-3 pl-10 border-2 border-indigo-100 rounded-xl bg-indigo-50 focus:bg-white focus:border-indigo-500 transition-colors" 
+                                    placeholder="Find item in image..." 
+                                    value={localSearch}
+                                    onChange={e => setLocalSearch(e.target.value)}
+                                />
+                                <div className="absolute left-3 top-3 text-indigo-400"><Icon d={Icons.search} /></div>
+                            </div>
+                            {/* WARNING FOR OLD DATA */}
+                            {selectedBox.items && selectedBox.items.some(i => typeof i === 'string') && (
+                                <p className="text-xs text-orange-500 text-center">⚠ Some items lack location data. Re-scan for highlights.</p>
+                            )}
+                        </div>
+
+                        <h2 className="text-2xl font-bold">{selectedBox.name}</h2>
+                        <p className="text-slate-500 mb-6">{selectedBox.room}</p>
+                        
+                        <div className="bg-slate-50 p-4 rounded-xl border mb-6 flex flex-col gap-2">
+                            {(selectedBox.items || []).map((item, i) => {
+                                const txt = typeof item === 'string' ? item : item.text;
+                                const isMatch = localSearch && txt.toLowerCase().includes(localSearch.toLowerCase());
+                                return (
+                                    <div key={i} className={`bg-white border border-slate-200 px-3 py-2 rounded-lg text-lg shadow-sm font-medium text-slate-700 flex gap-2 items-center transition-all ${isMatch ? 'ring-2 ring-green-400 bg-green-50' : ''}`}>
+                                        <span className={`flex-none w-8 h-8 flex items-center justify-center rounded-full font-bold mr-3 ${isMatch ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}>{i+1}</span>
+                                        <span>{txt}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="text-center border-t pt-6">
+                            <div id="qrcode-container" ref={qrRef} className="mx-auto border-4 border-black p-2 rounded-lg mb-4 w-40 h-40 flex items-center justify-center"></div>
+                            <button onClick={() => window.print()} className="w-full bg-black text-white p-4 rounded-xl font-bold flex justify-center gap-2"><Icon d={Icons.package} className="w-5 h-5" /> Print Label</button>
+                        </div>
+                    </div>
+                );
+
+                return (
+                    <div className="p-5 bg-slate-50 min-h-screen pb-32">
+                        <div className="flex justify-between items-center mb-6">
+                            <h1 className="text-2xl font-black flex items-center gap-2 text-slate-900"><Icon d={Icons.package} className="w-6 h-6" /> BoxSnap V2</h1>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowSettings(true)} className="p-3 bg-white text-slate-700 shadow rounded-full"><Icon d={Icons.settings} className="w-5 h-5" /></button>
+                                <button onClick={() => setShowScanner(true)} className="p-3 bg-indigo-600 text-white rounded-full shadow-lg"><Icon d={Icons.scan} className="w-5 h-5" /></button>
+                            </div>
+                        </div>
+                        <div className="relative mb-4">
+                            <input className="w-full p-3 pl-10 border rounded-xl shadow-sm" placeholder="Search Box Names..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                            <div className="absolute left-3 top-3 text-slate-400"><Icon d={Icons.search} /></div>
+                        </div>
+                        <div className="space-y-3">
+                            {filteredBoxes.map(box => (
+                                <div key={box.id} onClick={() => openBox(box)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col gap-2 border-t-4 border-indigo-500 box-card cursor-pointer">
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-bold text-lg text-slate-900">{box.name || "Untitled Box"}</h3>
+                                        <button onClick={(e) => {e.stopPropagation(); deleteBox(box.id)}} className="text-red-300"><Icon d={Icons.trash} className="w-5 h-5"/></button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {(box.items || []).slice(0, 3).map((item, i) => (
+                                            <span key={i} className={`text-xs px-2 py-1 rounded border ${searchQuery && (typeof item === 'string' ? item : item.text).toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-yellow-200 border-yellow-400 font-bold' : 'bg-slate-50 text-slate-500'}`}>
+                                                {typeof item === 'string' ? item : item.text}
+                                            </span>
+                                        ))}
+                                        {(box.items || []).length > 3 && <span className="text-xs text-slate-400 px-1">+{box.items.length - 3}</span>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <button onClick={() => setView('add')} className="fixed bottom-8 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"><Icon d={Icons.plus} className="w-6 h-6"/> <span className="font-bold pr-2 text-base">Add Box</span></button>
+                    </div>
+                );
+            }
+
+            ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        
+        } catch (error) {
+            var err = document.getElementById('error-display');
+            if(err) {
+                err.style.display = 'block';
+                err.innerHTML += "<strong>React Crash:</strong> " + error.message + "<br><small>App failed to start.</small>";
+            }
+        }
+    </script>
+</body>
+</html>
